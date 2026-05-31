@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Home Billiards Tools Lab Login</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="login-view" id="loginView" aria-label="Login screen">
+        <div class="ambient-layer" aria-hidden="true">
+          <span class="glass-sheen sheen-one"></span>
+          <span class="glass-sheen sheen-two"></span>
+          <span class="glass-sheen sheen-three"></span>
+        </div>
+
+        <div class="login-panel glass-panel">
+          <div class="brand-lockup">
+            <img src="/assets/home-billiards-logo-app.png" alt="Home Billiards" width="520" height="304" />
+          </div>
+
+          <div class="login-copy">
+            <p class="eyebrow">Internal tools</p>
+            <h1>Tools Lab</h1>
+            <p>Choose your work profile to enter the Home Billiards internal tools sandbox.</p>
+          </div>
+
+          <form class="login-form" id="loginForm" method="post" action="/login">
+            <label for="userSelect">Work user</label>
+            <div class="select-wrap">
+              <select id="userSelect" name="user" autocomplete="username" required>
+                <option value="shawn" selected>Shawn</option>
+                <option value="keith">Keith</option>
+                <option value="herlyn">Herlyn</option>
+                <option value="diego">Diego</option>
+                <option value="mark">Mark</option>
+              </select>
+            </div>
+
+            <label for="pinInput">Login code</label>
+            <input
+              id="pinInput"
+              name="pin"
+              type="password"
+              inputmode="numeric"
+              autocomplete="current-password"
+              placeholder="Enter login code"
+              required
+            />
+
+            <p class="form-message" id="loginMessage" role="alert" aria-live="polite"></p>
+
+            <button class="primary-action" type="submit">Enter the lab</button>
+          </form>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

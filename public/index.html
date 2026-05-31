@@ -24,36 +24,35 @@
           <div class="login-copy">
             <p class="eyebrow">Internal tools</p>
             <h1>Tools Lab</h1>
-            <p>Choose your work profile to enter the Home Billiards internal tools sandbox.</p>
+            <p>Enter your name and login code to enter the Home Billiards internal tools sandbox.</p>
           </div>
 
-          <form class="login-form" id="loginForm" method="post" action="/login">
-            <label for="userSelect">Work user</label>
-            <div class="select-wrap">
-              <select id="userSelect" name="user" autocomplete="username" required>
-                <option value="shawn" selected>Shawn</option>
-                <option value="keith">Keith</option>
-                <option value="herlyn">Herlyn</option>
-                <option value="diego">Diego</option>
-                <option value="mark">Mark</option>
-              </select>
-            </div>
+<form class="login-form" id="loginForm" method="post" action="/login">
+  <label for="userInput">Name</label>
+  <input
+    id="userInput"
+    name="user"
+    type="text"
+    autocomplete="username"
+    placeholder="Enter your name"
+    required
+  />
 
-            <label for="pinInput">Login code</label>
-            <input
-              id="pinInput"
-              name="pin"
-              type="password"
-              inputmode="numeric"
-              autocomplete="current-password"
-              placeholder="Enter login code"
-              required
-            />
+  <label for="pinInput">Login code</label>
+  <input
+    id="pinInput"
+    name="pin"
+    type="password"
+    inputmode="numeric"
+    autocomplete="current-password"
+    placeholder="Enter login code"
+    required
+  />
 
-            <p class="form-message" id="loginMessage" role="alert" aria-live="polite"></p>
+  <p class="form-message" id="loginMessage" role="alert" aria-live="polite"></p>
 
-            <button class="primary-action" type="submit">Enter the lab</button>
-          </form>
+  <button class="primary-action" type="submit">Enter the lab</button>
+</form>
         </div>
       </section>
     </main>

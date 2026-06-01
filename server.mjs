@@ -5,8 +5,12 @@ import connectPgSimple from 'connect-pg-simple';
 import bcrypt from 'bcryptjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { renderServicesAndQuotesPage } from './apps/services-and-quotes/page.mjs';
+import { servicesAndQuotesApiRouter } from './apps/services-and-quotes/routes.mjs';
+import { appRegistry, getEnabledApps } from './src/app-registry.mjs';
 import { pool } from './src/db.mjs';
 import { requireAuth } from './src/middleware.mjs';
+import { escapeHtml } from './src/utils/html.mjs';
 
 const requiredEnv = ['DATABASE_URL', 'SESSION_SECRET'];
 const missingEnv = requiredEnv.filter((key) => !process.env[key]);
@@ -30,6 +34,7 @@ const port = process.env.PORT || 3000;
 app.set('trust proxy', 1);
 
 app.use(express.urlencoded({ extended: false }));
+app.use(express.json({ limit: '32kb' }));
 
 app.use(
   session({
@@ -129,57 +134,14 @@ app.post('/login', async (req, res, next) => {
 });
 
 app.get('/dashboard', requireAuth, (req, res) => {
-  const user = req.session.user;
-
-  res.send(`<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Home Billiards Tools Lab</title>
-    <link rel="stylesheet" href="/styles.css" />
-  </head>
-  <body>
-    <main class="dashboard-shell">
-      <section class="dashboard-panel glass-panel" aria-label="Home Billiards Tools Lab dashboard">
-        <header class="dashboard-header">
-          <img src="/assets/home-billiards-logo-app.png" alt="Home Billiards" width="520" height="304" />
-          <form method="post" action="/logout">
-            <button class="secondary-action" type="submit">Log out</button>
-          </form>
-        </header>
-
-        <p class="eyebrow">Internal tools</p>
-        <h1>Home Billiards Tools Lab</h1>
-        <p class="welcome-line">Welcome, ${escapeHtml(user.displayName)}.</p>
-
-        <div class="empty-toolbox">
-          <h2>No tools installed yet.</h2>
-          <p>The toolbox is empty, but at least the door works.</p>
-        </div>
-
-        <div class="tool-grid" aria-label="Future tools placeholder">
-          <article class="tool-card muted-card">
-            <span class="tool-status">Coming later</span>
-            <h3>Cue Tracker</h3>
-            <p>Not connected yet. The live staff tracker stays untouched.</p>
-          </article>
-          <article class="tool-card muted-card">
-            <span class="tool-status">Coming later</span>
-            <h3>Project Command Center</h3>
-            <p>Future workspace for bigger operational projects.</p>
-          </article>
-          <article class="tool-card muted-card">
-            <span class="tool-status">Coming later</span>
-            <h3>Product Data Admin</h3>
-            <p>Future home for product records, specs, and catalog data.</p>
-          </article>
-        </div>
-      </section>
-    </main>
-  </body>
-</html>`);
+  res.send(renderDashboardPage({ user: req.session.user }));
 });
+
+app.get('/apps/services-and-quotes', requireAuth, (req, res) => {
+  res.send(renderServicesAndQuotesPage({ user: req.session.user }));
+});
+
+app.use('/api/apps/services-and-quotes', requireAuth, servicesAndQuotesApiRouter);
 
 app.post('/logout', requireAuth, (req, res, next) => {
   req.session.destroy((error) => {
@@ -205,11 +167,68 @@ app.listen(port, () => {
   console.log(`Home Billiards Tools Lab running on port ${port}`);
 });
 
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
+function renderDashboardPage({ user }) {
+  const enabledApps = getEnabledApps();
+  const dashboardMessage =
+    enabledApps.length > 0
+      ? `${enabledApps.length} tool${enabledApps.length === 1 ? '' : 's'} ready.`
+      : 'No tools installed yet.';
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Home Billiards Tools Lab</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="dashboard-shell">
+      <section class="dashboard-panel glass-panel" aria-label="Home Billiards Tools Lab dashboard">
+        <header class="dashboard-header">
+          <img src="/assets/home-billiards-logo-app.png" alt="Home Billiards" width="520" height="304" />
+          <form method="post" action="/logout">
+            <button class="secondary-action" type="submit">Log out</button>
+          </form>
+        </header>
+
+        <p class="eyebrow">Internal tools</p>
+        <h1>Home Billiards Tools Lab</h1>
+        <p class="welcome-line">Welcome, ${escapeHtml(user.displayName)}.</p>
+
+        <div class="empty-toolbox">
+          <h2>${escapeHtml(dashboardMessage)}</h2>
+          <p>Pick an available tool below.</p>
+        </div>
+
+        <div class="tool-grid" aria-label="Internal tools">
+          ${appRegistry.map(renderToolCard).join('')}
+        </div>
+      </section>
+    </main>
+  </body>
+</html>`;
+}
+
+function renderToolCard(app) {
+  const status = escapeHtml(formatStatus(app.status));
+  const content = `
+    <span class="tool-status">${status}</span>
+    <h3>${escapeHtml(app.name)}</h3>
+    <p>${escapeHtml(app.description)}</p>
+  `;
+
+  if (app.enabled && app.path) {
+    return `<a class="tool-card tool-card-link" href="${escapeHtml(app.path)}">${content}</a>`;
+  }
+
+  return `<article class="tool-card muted-card">${content}</article>`;
+}
+
+function formatStatus(status) {
+  if (status === 'v1') {
+    return 'v1';
+  }
+
+  return String(status || 'coming_later').replaceAll('_', ' ');
 }

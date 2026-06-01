@@ -4,9 +4,9 @@ const endpoints = {
   quotePreview: '/api/apps/services-and-quotes/quote-preview'
 };
 
-const moneyFormatter = new Intl.NumberFormat('en-US', {
+const moneyFormatter = new Intl.NumberFormat('en-CA', {
   style: 'currency',
-  currency: 'USD'
+  currency: 'CAD'
 });
 
 const state = {

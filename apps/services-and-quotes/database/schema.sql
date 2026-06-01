@@ -71,19 +71,27 @@ create trigger services_touch_updated_at
   for each row
   execute function services_and_quotes_touch_updated_at();
 
--- Demo seed data only. These are example services, not customer records.
+-- Optional demo/test seed data only.
+-- These rows are intentionally labeled "Demo -" and use example pricing only.
+-- Review or remove this section before running seed data in production.
+-- No customer records or saved quotes are inserted here.
 insert into service_categories (name, description, sort_order)
 values
-  ('Table Service', 'Common pool table setup and maintenance work.', 10),
-  ('Moves', 'Pool table disassembly, transport prep, and reassembly work.', 20),
-  ('Cloth & Cushions', 'Cloth replacement and cushion-related service work.', 30),
-  ('Accessories Setup', 'Assembly and setup for common game room accessories.', 40)
+  ('Demo - Table Service', 'Demo category for common pool table setup and maintenance work.', 10),
+  ('Demo - Moves', 'Demo category for pool table disassembly, transport prep, and reassembly work.', 20),
+  ('Demo - Cloth & Cushions', 'Demo category for cloth replacement and cushion-related service work.', 30),
+  ('Demo - Accessories Setup', 'Demo category for assembly and setup for common game room accessories.', 40)
 on conflict do nothing;
 
 with category_lookup as (
   select id, name
   from service_categories
-  where name in ('Table Service', 'Moves', 'Cloth & Cushions', 'Accessories Setup')
+  where name in (
+    'Demo - Table Service',
+    'Demo - Moves',
+    'Demo - Cloth & Cushions',
+    'Demo - Accessories Setup'
+  )
 )
 insert into services (
   category_id,
@@ -104,14 +112,14 @@ select
   seed.sort_order
 from (
   values
-    ('Table Service', 'Standard table leveling', 'Level a pool table after installation or seasonal movement.', 14900, 'service', true, 10),
-    ('Table Service', 'Standard table setup', 'Basic setup service for a residential pool table.', 39900, 'service', true, 20),
-    ('Moves', 'Disassemble table', 'Take down a pool table for moving or storage.', 29900, 'service', true, 10),
-    ('Moves', 'Reassemble table', 'Reassemble a previously moved pool table.', 39900, 'service', true, 20),
-    ('Cloth & Cushions', 'Cloth replacement labor', 'Labor estimate for replacing table cloth; cloth material priced separately.', 49900, 'service', true, 10),
-    ('Cloth & Cushions', 'Cushion inspection', 'Inspect cushion condition and provide service recommendation.', 7900, 'service', true, 20),
-    ('Accessories Setup', 'Ping pong top setup', 'Set up a conversion top or table tennis accessory.', 9900, 'service', true, 10),
-    ('Accessories Setup', 'Retired demo accessory service', 'Inactive demo row used to verify inactive services stay out of the quote builder.', 1000, 'service', false, 90)
+    ('Demo - Table Service', 'Demo - Standard table leveling', 'Demo estimate for leveling a pool table after installation or seasonal movement.', 14900, 'service', true, 10),
+    ('Demo - Table Service', 'Demo - Standard table setup', 'Demo estimate for basic residential pool table setup.', 39900, 'service', true, 20),
+    ('Demo - Moves', 'Demo - Disassemble table', 'Demo estimate for taking down a pool table for moving or storage.', 29900, 'service', true, 10),
+    ('Demo - Moves', 'Demo - Reassemble table', 'Demo estimate for reassembling a previously moved pool table.', 39900, 'service', true, 20),
+    ('Demo - Cloth & Cushions', 'Demo - Cloth replacement labor', 'Demo estimate for replacing table cloth; material pricing is not included.', 49900, 'service', true, 10),
+    ('Demo - Cloth & Cushions', 'Demo - Cushion inspection', 'Demo estimate for inspecting cushion condition and service recommendations.', 7900, 'service', true, 20),
+    ('Demo - Accessories Setup', 'Demo - Ping pong top setup', 'Demo estimate for setting up a conversion top or table tennis accessory.', 9900, 'service', true, 10),
+    ('Demo - Accessories Setup', 'Demo - Inactive accessory service', 'Inactive demo row used to verify inactive services stay out of the quote builder.', 1000, 'service', false, 90)
 ) as seed(category_name, name, description, base_price_cents, unit_label, is_active, sort_order)
 join category_lookup on category_lookup.name = seed.category_name
 on conflict do nothing;

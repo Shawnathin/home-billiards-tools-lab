@@ -9,6 +9,15 @@ export const appRegistry = [
     enabled: true
   },
   {
+    id: 'cue-repairs',
+    name: 'Cue Repairs',
+    description: 'Track cue repair intake, estimates, status, customer contact, and pickup.',
+    status: 'v1',
+    path: '/apps/cue-repairs',
+    defaultAccess: 'all_logged_in_users',
+    enabled: true
+  },
+  {
     id: 'cue-tracker',
     name: 'Cue Tracker',
     description: 'Not connected here. The live staff tracker stays untouched.',

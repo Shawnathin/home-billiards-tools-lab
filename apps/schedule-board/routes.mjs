@@ -62,129 +62,150 @@ export const scheduleBoardApiRouter = express.Router();
 scheduleBoardApiRouter.get('/visits', async (req, res, next) => {
   try {
     const { whereSql, values, limit } = buildVisitFilters(req.query || {});
-    const visitsResult = await pool.query(
-      `
-        select
-          v.id,
-          v.work_order_id as "workOrderId",
-          v.visit_number as "visitNumber",
-          v.visit_title as "visitTitle",
-          v.visit_type as "visitType",
-          v.schedule_state as "scheduleState",
-          v.scheduled_date as "scheduledDate",
-          v.arrival_window_label as "arrivalWindowLabel",
-          v.start_time as "startTime",
-          v.end_time as "endTime",
-          v.anytime,
-          v.assigned_to as "assignedTo",
-          v.location_role as "locationRole",
-          v.primary_location_id as "primaryLocationId",
-          v.secondary_location_id as "secondaryLocationId",
-          v.visit_status as "visitStatus",
-          v.visit_instructions as "visitInstructions",
-          v.timing_notes as "timingNotes",
-          v.completion_notes as "completionNotes",
-          v.cancellation_reason as "cancellationReason",
-          v.completed_at as "completedAt",
-          v.cancelled_at as "cancelledAt",
-          v.created_at as "createdAt",
-          v.updated_at as "updatedAt",
-          ${boardCategorySql} as "boardCategory",
-          w.work_order_number as "workOrderNumber",
-          w.title as "workOrderTitle",
-          w.calendar_title as "calendarTitle",
-          w.customer_display_snapshot as "customerDisplaySnapshot",
-          w.contact_person_name as "contactPersonName",
-          w.contact_person_phone as "contactPersonPhone",
-          w.contact_person_email as "contactPersonEmail",
-          w.customer_name as "customerName",
-          w.customer_company as "customerCompany",
-          w.customer_phone as "customerPhone",
-          w.customer_email as "customerEmail",
-          w.status as "workOrderStatus",
-          w.priority as "workOrderPriority",
-          w.location_mode as "locationMode",
-          w.service_details as "serviceDetails",
-          w.service_location_name as "legacyLocationName",
-          w.service_address_line_1 as "legacyAddressLine1",
-          w.service_address_line_2 as "legacyAddressLine2",
-          w.service_city as "legacyCity",
-          w.service_province as "legacyProvince",
-          w.service_postal_code as "legacyPostalCode",
-          jt.name as "jobTypeName",
-          jt.abbreviation as "jobTypeAbbreviation",
-          cc.contact_number as "customerContactNumber",
-          cc.display_name as "customerContactName",
-          cc.company_name as "customerContactCompanyName",
-          coalesce(pl.role, fl.role) as "primaryLocationRole",
-          coalesce(pl.label, fl.label) as "primaryLocationLabel",
-          coalesce(pl.address_line_1, fl.address_line_1) as "primaryAddressLine1",
-          coalesce(pl.address_line_2, fl.address_line_2) as "primaryAddressLine2",
-          coalesce(pl.city, fl.city) as "primaryCity",
-          coalesce(pl.province, fl.province) as "primaryProvince",
-          coalesce(pl.postal_code, fl.postal_code) as "primaryPostalCode",
-          coalesce(pl.site_access_notes, fl.site_access_notes) as "primarySiteAccessNotes",
-          coalesce(pl.parking_notes, fl.parking_notes) as "primaryParkingNotes",
-          coalesce(pl.stairs_elevator_notes, fl.stairs_elevator_notes) as "primaryStairsElevatorNotes",
-          coalesce(pl.room_location_notes, fl.room_location_notes) as "primaryRoomLocationNotes",
-          sl.role as "secondaryLocationRole",
-          sl.label as "secondaryLocationLabel",
-          sl.address_line_1 as "secondaryAddressLine1",
-          sl.address_line_2 as "secondaryAddressLine2",
-          sl.city as "secondaryCity",
-          sl.province as "secondaryProvince",
-          sl.postal_code as "secondaryPostalCode"
-        from job_work_order_visits v
-        join job_work_orders w on w.id = v.work_order_id
-        left join job_work_order_types jt on jt.id = w.job_type_id
-        left join customer_contacts cc on cc.id = w.customer_contact_id
-        left join job_work_order_locations pl on pl.id = v.primary_location_id
-        left join job_work_order_locations sl on sl.id = v.secondary_location_id
-        left join lateral (
+    const [visitsResult, summaryResult] = await Promise.all([
+      pool.query(
+        `
           select
-            l.role,
-            l.label,
-            l.address_line_1,
-            l.address_line_2,
-            l.city,
-            l.province,
-            l.postal_code,
-            l.site_access_notes,
-            l.parking_notes,
-            l.stairs_elevator_notes,
-            l.room_location_notes
-          from job_work_order_locations l
-          where l.work_order_id = w.id
+            v.id,
+            v.work_order_id as "workOrderId",
+            v.visit_number as "visitNumber",
+            v.visit_title as "visitTitle",
+            v.visit_type as "visitType",
+            v.schedule_state as "scheduleState",
+            v.scheduled_date as "scheduledDate",
+            v.arrival_window_label as "arrivalWindowLabel",
+            v.start_time as "startTime",
+            v.end_time as "endTime",
+            v.anytime,
+            v.assigned_to as "assignedTo",
+            v.location_role as "locationRole",
+            v.primary_location_id as "primaryLocationId",
+            v.secondary_location_id as "secondaryLocationId",
+            v.visit_status as "visitStatus",
+            v.visit_instructions as "visitInstructions",
+            v.timing_notes as "timingNotes",
+            v.completion_notes as "completionNotes",
+            v.cancellation_reason as "cancellationReason",
+            v.completed_at as "completedAt",
+            v.cancelled_at as "cancelledAt",
+            v.created_at as "createdAt",
+            v.updated_at as "updatedAt",
+            ${boardCategorySql} as "boardCategory",
+            w.work_order_number as "workOrderNumber",
+            w.title as "workOrderTitle",
+            w.calendar_title as "calendarTitle",
+            w.customer_display_snapshot as "customerDisplaySnapshot",
+            w.contact_person_name as "contactPersonName",
+            w.contact_person_phone as "contactPersonPhone",
+            w.contact_person_email as "contactPersonEmail",
+            w.customer_name as "customerName",
+            w.customer_company as "customerCompany",
+            w.customer_phone as "customerPhone",
+            w.customer_email as "customerEmail",
+            w.status as "workOrderStatus",
+            w.priority as "workOrderPriority",
+            w.location_mode as "locationMode",
+            w.service_details as "serviceDetails",
+            w.service_location_name as "legacyLocationName",
+            w.service_address_line_1 as "legacyAddressLine1",
+            w.service_address_line_2 as "legacyAddressLine2",
+            w.service_city as "legacyCity",
+            w.service_province as "legacyProvince",
+            w.service_postal_code as "legacyPostalCode",
+            jt.name as "jobTypeName",
+            jt.abbreviation as "jobTypeAbbreviation",
+            cc.contact_number as "customerContactNumber",
+            cc.display_name as "customerContactName",
+            cc.company_name as "customerContactCompanyName",
+            coalesce(pl.role, fl.role) as "primaryLocationRole",
+            coalesce(pl.label, fl.label) as "primaryLocationLabel",
+            coalesce(pl.address_line_1, fl.address_line_1) as "primaryAddressLine1",
+            coalesce(pl.address_line_2, fl.address_line_2) as "primaryAddressLine2",
+            coalesce(pl.city, fl.city) as "primaryCity",
+            coalesce(pl.province, fl.province) as "primaryProvince",
+            coalesce(pl.postal_code, fl.postal_code) as "primaryPostalCode",
+            coalesce(pl.site_access_notes, fl.site_access_notes) as "primarySiteAccessNotes",
+            coalesce(pl.parking_notes, fl.parking_notes) as "primaryParkingNotes",
+            coalesce(pl.stairs_elevator_notes, fl.stairs_elevator_notes) as "primaryStairsElevatorNotes",
+            coalesce(pl.room_location_notes, fl.room_location_notes) as "primaryRoomLocationNotes",
+            sl.role as "secondaryLocationRole",
+            sl.label as "secondaryLocationLabel",
+            sl.address_line_1 as "secondaryAddressLine1",
+            sl.address_line_2 as "secondaryAddressLine2",
+            sl.city as "secondaryCity",
+            sl.province as "secondaryProvince",
+            sl.postal_code as "secondaryPostalCode"
+          from job_work_order_visits v
+          join job_work_orders w on w.id = v.work_order_id
+          left join job_work_order_types jt on jt.id = w.job_type_id
+          left join customer_contacts cc on cc.id = w.customer_contact_id
+          left join job_work_order_locations pl on pl.id = v.primary_location_id
+          left join job_work_order_locations sl on sl.id = v.secondary_location_id
+          left join lateral (
+            select
+              l.role,
+              l.label,
+              l.address_line_1,
+              l.address_line_2,
+              l.city,
+              l.province,
+              l.postal_code,
+              l.site_access_notes,
+              l.parking_notes,
+              l.stairs_elevator_notes,
+              l.room_location_notes
+            from job_work_order_locations l
+            where l.work_order_id = w.id
+            order by
+              case when l.role = coalesce(v.location_role, 'service') then 0 else 1 end,
+              case l.role
+                when 'service' then 0
+                when 'pickup' then 1
+                when 'delivery' then 2
+                else 3
+              end,
+              l.created_at asc
+            limit 1
+          ) fl on true
+          ${whereSql}
           order by
-            case when l.role = coalesce(v.location_role, 'service') then 0 else 1 end,
-            case l.role
-              when 'service' then 0
-              when 'pickup' then 1
-              when 'delivery' then 2
+            case (${boardCategorySql})
+              when 'today' then 0
+              when 'upcoming' then 1
+              when 'unscheduled' then 2
               else 3
             end,
-            l.created_at asc
-          limit 1
-        ) fl on true
-        ${whereSql}
-        order by
-          case (${boardCategorySql})
-            when 'today' then 0
-            when 'upcoming' then 1
-            when 'unscheduled' then 2
-            else 3
-          end,
-          v.scheduled_date asc nulls last,
-          v.start_time asc nulls last,
-          w.work_order_number asc,
-          v.visit_number asc
-        limit ${limit}
-      `,
-      values
-    );
+            v.scheduled_date asc nulls last,
+            v.start_time asc nulls last,
+            w.work_order_number asc,
+            v.visit_number asc
+          limit ${limit}
+        `,
+        values
+      ),
+      pool.query(
+        `
+          select
+            count(*) filter (where board_category = 'today')::integer as "todayCount",
+            count(*) filter (where board_category = 'upcoming')::integer as "upcomingCount",
+            count(*) filter (where board_category = 'unscheduled')::integer as "unscheduledCount",
+            count(*) filter (where board_category = 'completed')::integer as "completedCount",
+            count(*)::integer as "totalCount"
+          from (
+            select ${boardCategorySql} as board_category
+            from job_work_order_visits v
+            join job_work_orders w on w.id = v.work_order_id
+            left join job_work_order_types jt on jt.id = w.job_type_id
+            left join customer_contacts cc on cc.id = w.customer_contact_id
+            ${whereSql}
+          ) categorized
+        `,
+        values
+      )
+    ]);
 
     const visits = visitsResult.rows.map(formatScheduleVisit);
-    const summary = summarizeVisits(visits);
+    const summary = summaryResult.rows[0] || summarizeVisits(visits);
 
     return res.json({
       visits,

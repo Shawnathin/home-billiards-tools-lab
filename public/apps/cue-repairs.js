@@ -17,6 +17,7 @@ const statusLabels = {
 };
 
 const statusOptions = Object.entries(statusLabels);
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const moneyFormatter = new Intl.NumberFormat('en-CA', {
   style: 'currency',
@@ -137,12 +138,14 @@ function renderTypeOptions() {
   elements.repairTypeFilter.replaceChildren(createOption('', 'All types'));
 
   for (const repairType of state.types) {
-    const formOption = createOption(repairType.id, repairType.name);
+    const repairTypeId = clean(repairType.id);
+    const formOption = createOption(repairTypeId, repairType.name);
+    formOption.dataset.repairTypeId = repairTypeId;
     formOption.dataset.defaultPriceCents = String(repairType.defaultPriceCents || 0);
     formOption.dataset.requiresOther = String(requiresOtherText(repairType.name));
     elements.typeSelect.append(formOption);
 
-    elements.repairTypeFilter.append(createOption(repairType.id, repairType.name));
+    elements.repairTypeFilter.append(createOption(repairTypeId, repairType.name));
   }
 
   const customOption = createOption('custom', 'Custom repair type');
@@ -192,6 +195,7 @@ function getCreatePayload() {
   }
 
   payload.estimateApproved = elements.form.elements.estimateApproved.checked;
+  payload.repairTypeId = getSelectedRepairTypeId(payload.repairTypeId);
 
   if (payload.repairTypeId === 'custom') {
     payload.repairTypeId = null;
@@ -215,9 +219,14 @@ function validateCreatePayload(payload) {
 
   const selectedOption = elements.typeSelect.selectedOptions[0];
   const needsOther = selectedOption?.dataset.requiresOther === 'true';
+  const selectedRepairTypeId = clean(payload.repairTypeId);
 
-  if (!clean(payload.repairTypeId) && !clean(payload.repairTypeOther)) {
+  if (!selectedRepairTypeId && !clean(payload.repairTypeOther)) {
     return 'Choose a repair type or enter a custom repair type.';
+  }
+
+  if (selectedRepairTypeId && !UUID_PATTERN.test(selectedRepairTypeId)) {
+    return 'Repair type did not include a valid id. Refresh Cue Repairs and try again.';
   }
 
   if (needsOther && !clean(payload.repairTypeOther)) {
@@ -483,7 +492,7 @@ function createActionButton(label, action, repairId, className = 'secondary-acti
 
 function createOption(value, label) {
   const option = document.createElement('option');
-  option.value = value;
+  option.value = clean(value);
   option.textContent = label;
   return option;
 }
@@ -514,6 +523,40 @@ function fillEstimateFromSelectedType() {
   if (defaultPriceCents > 0) {
     estimateInput.value = centsToDollars(defaultPriceCents);
   }
+}
+
+function getSelectedRepairTypeId(formValue) {
+  const selectedOption = elements.typeSelect.selectedOptions[0];
+  const selectedValue = clean(selectedOption?.value || formValue);
+
+  if (!selectedValue || selectedValue === 'custom') {
+    return selectedValue || null;
+  }
+
+  const selectedDataId = clean(selectedOption?.dataset.repairTypeId);
+
+  if (UUID_PATTERN.test(selectedDataId)) {
+    return selectedDataId;
+  }
+
+  if (UUID_PATTERN.test(selectedValue)) {
+    return selectedValue;
+  }
+
+  const matchingType = state.types.find((repairType) => {
+    return clean(repairType.id) === selectedValue || clean(repairType.name) === selectedValue;
+  });
+  const matchingTypeId = clean(matchingType?.id);
+
+  if (UUID_PATTERN.test(matchingTypeId)) {
+    return matchingTypeId;
+  }
+
+  console.warn('Cue Repairs repair type select produced a non-UUID value.', {
+    selectedValue,
+    selectedLabel: selectedOption?.textContent || ''
+  });
+  return selectedValue;
 }
 
 async function fetchJson(url, options = {}) {

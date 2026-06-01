@@ -1,7 +1,7 @@
 import express from 'express';
 import { pool } from '../../src/db.mjs';
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_TEXT_LENGTH = 2000;
 const MAX_MONEY_CENTS = 99999999;
 const STATUSES = new Set([
@@ -402,6 +402,12 @@ async function normalizeRepairInput(rawInput, existing) {
     data.repairTypeId = null;
   }
 
+  const repairTypeReferenceError = await resolveRepairTypeReference(data);
+
+  if (repairTypeReferenceError) {
+    return { error: repairTypeReferenceError };
+  }
+
   const validationError = validateRepairData(data);
 
   if (validationError) {
@@ -491,6 +497,34 @@ async function validateRepairType(data, input, existing) {
   }
 
   return '';
+}
+
+async function resolveRepairTypeReference(data) {
+  if (!data.repairTypeId || UUID_PATTERN.test(data.repairTypeId)) {
+    return '';
+  }
+
+  const submittedValue = data.repairTypeId;
+  const result = await pool.query(
+    `
+      select id
+      from cue_repair_types
+      where lower(name) = lower($1)
+        and is_active = true
+      limit 2
+    `,
+    [submittedValue]
+  );
+
+  if (result.rows.length === 1) {
+    data.repairTypeId = result.rows[0].id;
+    console.warn('Cue Repairs resolved repairTypeId from repair type name. Check the client select option value.', {
+      submittedValue
+    });
+    return '';
+  }
+
+  return 'Choose a valid repair type. Refresh Cue Repairs and try again if the repair type list looks stale.';
 }
 
 function readClean(input, existing, fieldName, options = {}) {

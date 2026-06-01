@@ -1,33 +1,19 @@
+import { renderAppShell } from '../../src/utils/app-shell.mjs';
 import { escapeHtml } from '../../src/utils/html.mjs';
 
 export function renderProductsInventoryPage({ user }) {
   const displayName = escapeHtml(user?.displayName || 'staff');
 
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Products / Inventory | Home Billiards Tools Lab</title>
-    <link rel="stylesheet" href="/styles.css" />
-    <link rel="stylesheet" href="/apps/products-inventory.css" />
-    <script src="/apps/products-inventory.js" defer></script>
-  </head>
-  <body>
-    <main class="inventory-shell">
+  return renderAppShell({
+    title: 'Products / Inventory',
+    user,
+    activePath: '/apps/products-inventory',
+    styles: ['/apps/products-inventory.css'],
+    scripts: ['/apps/products-inventory.js'],
+    mainLabel: 'Products and Inventory app',
+    content: `
+    <div class="inventory-shell">
       <section class="inventory-panel glass-panel" aria-label="Products and Inventory app">
-        <header class="inventory-topbar">
-          <a class="inventory-logo" href="/dashboard" aria-label="Back to dashboard">
-            <img src="/assets/home-billiards-logo-app.png" alt="Home Billiards" width="520" height="304" />
-          </a>
-          <div class="inventory-nav-actions">
-            <a class="secondary-action text-action" href="/dashboard">Dashboard</a>
-            <form method="post" action="/logout">
-              <button class="secondary-action" type="submit">Log out</button>
-            </form>
-          </div>
-        </header>
-
         <div class="inventory-title-row">
           <div>
             <p class="eyebrow">Internal tools</p>
@@ -236,7 +222,6 @@ export function renderProductsInventoryPage({ user }) {
           </section>
         </div>
       </section>
-    </main>
-  </body>
-</html>`;
+    </div>`
+  });
 }

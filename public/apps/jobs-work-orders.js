@@ -78,7 +78,9 @@ const state = {
   properties: [],
   searchTimer: null,
   cityTimer: null,
-  contactSearchTimer: null
+  contactSearchTimer: null,
+  deepLink: readInitialWorkOrderDeepLink(),
+  highlightedWorkOrderId: ''
 };
 
 const elements = {
@@ -210,6 +212,7 @@ async function loadApp() {
     renderReferenceOptions();
     resetWorkOrderForm();
     await Promise.all([loadSummary(), loadWorkOrders()]);
+    await handleInitialWorkOrderDeepLink();
   } catch (error) {
     setListStatus(error.message || 'Work Orders could not load.', true);
     elements.list.replaceChildren(createEmptyState('Work Orders data could not load.'));
@@ -476,7 +479,7 @@ function renderWorkOrderList() {
 
 function createWorkOrderCard(workOrder) {
   const card = document.createElement('article');
-  card.className = `jobs-work-order-card${workOrder.isArchived ? ' is-archived' : ''}${workOrder.isPaid || workOrder.isCancelled ? ' is-closed' : ''}`;
+  card.className = `jobs-work-order-card${workOrder.isArchived ? ' is-archived' : ''}${workOrder.isPaid || workOrder.isCancelled ? ' is-closed' : ''}${workOrder.id === state.highlightedWorkOrderId ? ' is-linked-target' : ''}`;
   card.dataset.workOrderId = workOrder.id;
 
   const header = document.createElement('div');
@@ -1907,6 +1910,99 @@ function setCardMessage(workOrderId, message, isError = false) {
   });
 }
 
+async function handleInitialWorkOrderDeepLink() {
+  const deepLink = state.deepLink;
+
+  if (!deepLink.workOrderId && !deepLink.workOrderNumber) {
+    return;
+  }
+
+  try {
+    const workOrder = await loadDeepLinkedWorkOrder(deepLink);
+
+    if (!workOrder) {
+      setListStatus(`Could not load work order ${formatDeepLinkWorkOrderLabel(deepLink)} from Schedule Board.`, true);
+      return;
+    }
+
+    ensureWorkOrderVisible(workOrder);
+    state.highlightedWorkOrderId = workOrder.id;
+    renderWorkOrderList();
+    setListStatus(`Loaded work order ${workOrder.workOrderNumber || formatDeepLinkWorkOrderLabel(deepLink)} from Schedule Board.`);
+    scrollToWorkOrder(workOrder.id);
+  } catch (error) {
+    setListStatus(error.message || `Could not load work order ${formatDeepLinkWorkOrderLabel(deepLink)} from Schedule Board.`, true);
+  }
+}
+
+async function loadDeepLinkedWorkOrder(deepLink) {
+  const existing = deepLink.workOrderId
+    ? findWorkOrder(deepLink.workOrderId)
+    : findWorkOrderByNumber(deepLink.workOrderNumber);
+
+  if (existing) {
+    return existing;
+  }
+
+  if (deepLink.workOrderId) {
+    try {
+      const payload = await fetchJson(endpoints.workOrder(deepLink.workOrderId));
+      return payload.workOrder || null;
+    } catch (error) {
+      if (!deepLink.workOrderNumber) {
+        throw error;
+      }
+    }
+  }
+
+  if (deepLink.workOrderNumber) {
+    const params = new URLSearchParams({ search: deepLink.workOrderNumber });
+    const payload = await fetchJson(`${endpoints.workOrders}?${params}`);
+    const matches = payload.workOrders || [];
+    return matches.find((workOrder) => workOrder.workOrderNumber === deepLink.workOrderNumber) || matches[0] || null;
+  }
+
+  return null;
+}
+
+function ensureWorkOrderVisible(workOrder) {
+  const existingIndex = state.workOrders.findIndex((item) => item.id === workOrder.id);
+
+  if (existingIndex >= 0) {
+    state.workOrders[existingIndex] = workOrder;
+    return;
+  }
+
+  state.workOrders = [workOrder, ...state.workOrders];
+}
+
+function scrollToWorkOrder(workOrderId) {
+  window.requestAnimationFrame(() => {
+    const card = getWorkOrderCard(workOrderId);
+
+    if (!card) {
+      return;
+    }
+
+    card.setAttribute('tabindex', '-1');
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.focus({ preventScroll: true });
+  });
+}
+
+function readInitialWorkOrderDeepLink() {
+  const params = new URLSearchParams(window.location.search);
+
+  return {
+    workOrderId: clean(params.get('workOrderId')),
+    workOrderNumber: clean(params.get('workOrderNumber'))
+  };
+}
+
+function formatDeepLinkWorkOrderLabel(deepLink) {
+  return deepLink.workOrderNumber || deepLink.workOrderId || 'requested work order';
+}
+
 function readLocationField(role, fieldName) {
   return document.querySelector(`[data-location-field="${role}.${fieldName}"]`)?.value || '';
 }
@@ -1946,6 +2042,10 @@ function getWorkOrderCard(workOrderId) {
 
 function findWorkOrder(workOrderId) {
   return state.workOrders.find((workOrder) => workOrder.id === workOrderId) || null;
+}
+
+function findWorkOrderByNumber(workOrderNumber) {
+  return state.workOrders.find((workOrder) => workOrder.workOrderNumber === workOrderNumber) || null;
 }
 
 function getSelectedWorkType() {

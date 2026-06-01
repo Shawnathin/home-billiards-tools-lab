@@ -408,11 +408,25 @@ function formatScheduleVisit(row) {
     workOrderStatus: row.workOrderStatus,
     workOrderStatusLabel: formatWorkOrderStatus(row.workOrderStatus),
     workOrderPriority: row.workOrderPriority || '',
-    workOrderUrl: '/apps/jobs-work-orders',
+    workOrderUrl: buildWorkOrderUrl(row),
     scheduleSummary: [formatDateOnly(row.scheduledDate), visitWindow].filter(Boolean).join(' / ') || 'Unscheduled',
     updatedAt: row.updatedAt || null,
     createdAt: row.createdAt || null
   };
+}
+
+function buildWorkOrderUrl(row) {
+  const params = new URLSearchParams();
+
+  if (row.workOrderId) {
+    params.set('workOrderId', row.workOrderId);
+  }
+
+  if (row.workOrderNumber) {
+    params.set('workOrderNumber', row.workOrderNumber);
+  }
+
+  return `/apps/jobs-work-orders${params.toString() ? `?${params}` : ''}`;
 }
 
 function formatLocation(row, prefix) {

@@ -461,6 +461,15 @@
   border-style: dashed;
 }
 
+.jobs-work-order-card.is-linked-target {
+  border-color: rgba(40, 95, 106, 0.46);
+  box-shadow: 0 0 0 4px rgba(115, 210, 214, 0.22), 0 14px 28px rgba(23, 48, 68, 0.08);
+}
+
+.jobs-work-order-card.is-linked-target:focus {
+  outline: none;
+}
+
 .jobs-card-header {
   justify-content: space-between;
   gap: 14px;

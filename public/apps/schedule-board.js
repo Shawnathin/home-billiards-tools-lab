@@ -273,7 +273,7 @@
 
     const link = document.createElement('a');
     link.className = 'secondary-action compact-action schedule-open-link';
-    link.href = visit.workOrderUrl || '/apps/jobs-work-orders';
+    link.href = visit.workOrderUrl || buildWorkOrderUrl(visit);
     link.textContent = 'Open Work Orders';
 
     actions.append(link);
@@ -377,6 +377,20 @@
 
   function formatContact(visit) {
     return [visit.phone, visit.email].filter(Boolean).join(' / ') || 'Not set';
+  }
+
+  function buildWorkOrderUrl(visit) {
+    const params = new URLSearchParams();
+
+    if (visit.workOrderId) {
+      params.set('workOrderId', visit.workOrderId);
+    }
+
+    if (visit.workOrderNumber) {
+      params.set('workOrderNumber', visit.workOrderNumber);
+    }
+
+    return `/apps/jobs-work-orders${params.toString() ? `?${params}` : ''}`;
   }
 
   function formatDate(value) {

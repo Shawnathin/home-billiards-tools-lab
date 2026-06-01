@@ -36,6 +36,15 @@ export const appRegistry = [
     enabled: true
   },
   {
+    id: 'customers-contacts',
+    name: 'Customers / Contacts',
+    description: 'Track customer and business contact details, notes, status, and contact preferences.',
+    status: 'v1',
+    path: '/apps/customers-contacts',
+    defaultAccess: 'all_logged_in_users',
+    enabled: true
+  },
+  {
     id: 'cue-tracker',
     name: 'Cue Tracker',
     description: 'Not connected here. The live staff tracker stays untouched.',

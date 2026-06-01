@@ -1,4 +1,8 @@
 import express from 'express';
+import {
+  ContactCaptureValidationError,
+  resolveIntakeCustomerContact
+} from '../../src/customer-contact-capture.mjs';
 import { pool } from '../../src/db.mjs';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -103,6 +107,10 @@ cueRepairsApiRouter.post('/repairs', async (req, res, next) => {
     const repair = await insertRepair(normalized.data);
     return res.status(201).json({ repair: formatRepair(repair) });
   } catch (error) {
+    if (error instanceof ContactCaptureValidationError) {
+      return res.status(400).json({ error: error.message });
+    }
+
     if (isValidationConstraintError(error)) {
       return res.status(400).json({ error: 'Repair intake is missing required information.' });
     }
@@ -241,62 +249,91 @@ async function insertRepair(data) {
   let lastError = null;
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    try {
-      const result = await pool.query(
-        `
-          insert into cue_repair_jobs (
-            customer_name,
-            customer_phone,
-            customer_email,
-            customer_contact_id,
-            cue_brand,
-            cue_model,
-            cue_description,
-            repair_type_id,
-            repair_type_other,
-            intake_notes,
-            internal_notes,
-            status,
-            estimate_cents,
-            final_price_cents,
-            estimate_approved
-          )
-          values (
-            $1, $2, $3, $4, $5, $6, $7,
-            $8, $9, $10, $11, $12, $13, $14, $15
-          )
-          returning *
-        `,
-        [
-          data.customerName,
-          data.customerPhone,
-          data.customerEmail,
-          data.customerContactId,
-          data.cueBrand,
-          data.cueModel,
-          data.cueDescription,
-          data.repairTypeId,
-          data.repairTypeOther,
-          data.intakeNotes,
-          data.internalNotes,
-          data.status,
-          data.estimateCents,
-          data.finalPriceCents,
-          data.estimateApproved
-        ]
-      );
+    const client = await pool.connect();
+    let repairId = null;
 
-      return getRepairById(result.rows[0].id);
+    try {
+      await client.query('begin');
+
+      const customerContactId = await resolveIntakeCustomerContact(client, data, {
+        saveCustomerContact: data.saveCustomerContact,
+        sourceNote: 'Created from Cue Repairs intake.'
+      });
+      repairId = await insertRepairRow(client, { ...data, customerContactId });
+
+      await client.query('commit');
     } catch (error) {
+      await client.query('rollback').catch((rollbackError) => {
+        console.warn('Cue Repairs transaction rollback failed:', rollbackError.message);
+      });
+
+      if (error instanceof ContactCaptureValidationError) {
+        throw error;
+      }
+
       lastError = error;
 
       if (error.code !== '23505') {
         throw error;
       }
+
+      continue;
+    } finally {
+      client.release();
     }
+
+    return getRepairById(repairId);
   }
 
   throw lastError;
+}
+
+async function insertRepairRow(client, data) {
+  const result = await client.query(
+    `
+      insert into cue_repair_jobs (
+        customer_name,
+        customer_phone,
+        customer_email,
+        customer_contact_id,
+        cue_brand,
+        cue_model,
+        cue_description,
+        repair_type_id,
+        repair_type_other,
+        intake_notes,
+        internal_notes,
+        status,
+        estimate_cents,
+        final_price_cents,
+        estimate_approved
+      )
+      values (
+        $1, $2, $3, $4, $5, $6, $7,
+        $8, $9, $10, $11, $12, $13, $14, $15
+      )
+      returning id
+    `,
+    [
+      data.customerName,
+      data.customerPhone,
+      data.customerEmail,
+      data.customerContactId,
+      data.cueBrand,
+      data.cueModel,
+      data.cueDescription,
+      data.repairTypeId,
+      data.repairTypeOther,
+      data.intakeNotes,
+      data.internalNotes,
+      data.status,
+      data.estimateCents,
+      data.finalPriceCents,
+      data.estimateApproved
+    ]
+  );
+
+  return result.rows[0].id;
 }
 
 async function updateRepair(id, existing, data, rawBody) {
@@ -393,6 +430,7 @@ async function normalizeRepairInput(rawInput, existing) {
     customerPhone: readClean(input, existing, 'customerPhone', { maxLength: 80 }),
     customerEmail: readClean(input, existing, 'customerEmail', { maxLength: 240, lowercase: true }),
     customerContactId: readClean(input, existing, 'customerContactId', { maxLength: 80 }),
+    saveCustomerContact: readBoolean(hasInput(input, 'saveCustomerContact') ? getInput(input, 'saveCustomerContact') : false),
     cueBrand: readClean(input, existing, 'cueBrand', { maxLength: 140 }),
     cueModel: readClean(input, existing, 'cueModel', { maxLength: 160 }),
     cueDescription: readClean(input, existing, 'cueDescription', { maxLength: MAX_TEXT_LENGTH }),

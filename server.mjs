@@ -28,7 +28,6 @@ import { pool } from './src/db.mjs';
 import { requireAuth } from './src/middleware.mjs';
 import { renderAppShell } from './src/utils/app-shell.mjs';
 import { canReviewFeedback } from './src/utils/feedback-access.mjs';
-import { escapeHtml } from './src/utils/html.mjs';
 
 const requiredEnv = ['DATABASE_URL', 'SESSION_SECRET'];
 const missingEnv = requiredEnv.filter((key) => !process.env[key]);
@@ -47,6 +46,12 @@ const app = express();
 const PgSession = connectPgSimple(session);
 const isProduction = process.env.NODE_ENV === 'production';
 const port = process.env.PORT || 3000;
+const defaultSessionMaxAgeHours = 168;
+const configuredSessionMaxAgeHours = Number.parseFloat(process.env.SESSION_MAX_AGE_HOURS || '');
+const sessionMaxAgeHours = Number.isFinite(configuredSessionMaxAgeHours) && configuredSessionMaxAgeHours > 0
+  ? configuredSessionMaxAgeHours
+  : defaultSessionMaxAgeHours;
+const sessionMaxAgeMs = sessionMaxAgeHours * 60 * 60 * 1000;
 
 // Render sits behind a proxy. This lets secure cookies work correctly in production.
 app.set('trust proxy', 1);
@@ -69,7 +74,7 @@ app.use(
       httpOnly: true,
       sameSite: 'lax',
       secure: isProduction,
-      maxAge: 1000 * 60 * 60 * 8
+      maxAge: sessionMaxAgeMs
     }
   })
 );
@@ -273,36 +278,22 @@ function renderDashboardPage({ user }) {
             </article>
             <article>
               <span>Status</span>
-              <strong>Internal tools only</strong>
+              <strong>Early development</strong>
             </article>
           </div>
 
-          <section class="ops-tool-section" aria-labelledby="activeToolsTitle">
+          <section class="ops-tool-section" aria-labelledby="toolsLabWelcomeTitle">
             <div class="ops-section-heading">
               <div>
-                <p class="eyebrow">Available now</p>
-                <h2 id="activeToolsTitle">Active tools</h2>
+                <p class="eyebrow">Internal workspace</p>
+                <h2 id="toolsLabWelcomeTitle">Welcome to the Tools Lab</h2>
               </div>
-              <p>${enabledApps.length} module${enabledApps.length === 1 ? '' : 's'} ready for staff use.</p>
             </div>
 
-            <div class="ops-tool-list" aria-label="Active internal tools">
-              ${enabledApps.map(renderDashboardTool).join('')}
-            </div>
+            <p class="ops-vision-copy">We are building the future of Home Billiards operations together. This is an early internal workspace for testing better ways to manage customers, work orders, scheduling, inventory, service, and team communication.</p>
           </section>
 
-          <p class="ops-platform-note">Internal tools only. Some modules may contain demo/reference data until real-use rollout.</p>
+          <p class="ops-platform-note">Internal tools only. Early development build.</p>
         </section>`
   });
-}
-
-function renderDashboardTool(app) {
-  return `<a class="ops-tool-row" href="${escapeHtml(app.path)}">
-                <span class="ops-tool-status">Active</span>
-                <span class="ops-tool-copy">
-                  <strong>${escapeHtml(app.name)}</strong>
-                  <small>${escapeHtml(app.description)}</small>
-                </span>
-                <span class="ops-tool-open">Open</span>
-              </a>`;
 }

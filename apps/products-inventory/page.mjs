@@ -23,7 +23,10 @@ export function renderProductsInventoryPage({ user }) {
           <p class="inventory-mode-pill">v1</p>
         </div>
 
-        <p class="inventory-warning">Inventory is for internal awareness only. Confirm physical stock before promising availability.</p>
+        <div class="inventory-note-stack" aria-label="Inventory build notes">
+          <p class="inventory-note">Pre-alpha early build of Inventory.</p>
+          <p class="inventory-note">Yes Keith, this will include margin, exchange rate, pricing logic, and better product database tools. This is the beginning of building the database.</p>
+        </div>
 
         <div class="inventory-summary-grid" aria-label="Products inventory summary">
           <article class="inventory-stat-card">

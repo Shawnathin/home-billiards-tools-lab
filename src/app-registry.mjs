@@ -3,7 +3,7 @@ import { canReviewFeedback } from './utils/feedback-access.mjs';
 export const appRegistry = [
   {
     id: 'services-and-quotes',
-    name: 'Services & Quotes',
+    name: 'Services',
     description: 'Build service quote previews from the internal service catalog.',
     status: 'v1',
     path: '/apps/services-and-quotes',
@@ -21,7 +21,7 @@ export const appRegistry = [
   },
   {
     id: 'products-inventory',
-    name: 'Products / Inventory',
+    name: 'Inventory',
     description: 'Manage internal products, pricing, stock counts, and inventory adjustments.',
     status: 'v1',
     path: '/apps/products-inventory',
@@ -30,7 +30,7 @@ export const appRegistry = [
   },
   {
     id: 'warranty-service-tickets',
-    name: 'Warranty / Service Tickets',
+    name: 'Service Tickets',
     description: 'Track warranty claims, service issues, and customer follow-ups.',
     status: 'v1',
     path: '/apps/warranty-service-tickets',
@@ -39,7 +39,7 @@ export const appRegistry = [
   },
   {
     id: 'customers-contacts',
-    name: 'Customers / Contacts',
+    name: 'Customers',
     description: 'Manage customer and business contact records.',
     status: 'v1',
     path: '/apps/customers-contacts',
@@ -57,7 +57,7 @@ export const appRegistry = [
   },
   {
     id: 'schedule-board',
-    name: 'Schedule Board',
+    name: 'Schedule',
     description: 'View booked visits, unscheduled work, completed visits, and office follow-up.',
     status: 'v1',
     path: '/apps/schedule-board',
@@ -66,7 +66,7 @@ export const appRegistry = [
   },
   {
     id: 'internal-messages',
-    name: 'Internal Messages',
+    name: 'Messages',
     description: 'Staff-only threads for general and record-linked internal communication.',
     status: 'v1',
     path: '/apps/internal-messages',

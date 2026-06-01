@@ -77,8 +77,14 @@
   background: rgba(115, 210, 214, 0.18);
 }
 
-.inventory-warning {
+.inventory-note-stack {
+  display: grid;
+  gap: 10px;
   margin: 0 0 18px;
+}
+
+.inventory-note {
+  margin: 0;
   padding: 12px 14px;
   border: 1px solid rgba(184, 133, 43, 0.3);
   border-radius: var(--radius);

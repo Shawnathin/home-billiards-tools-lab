@@ -370,6 +370,10 @@
   margin: 0;
 }
 
+.jobs-contact-create-action {
+  justify-self: start;
+}
+
 .jobs-selected-contact {
   gap: 4px;
   padding: 10px;

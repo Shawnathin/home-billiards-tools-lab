@@ -17,6 +17,7 @@ const endpoints = {
 };
 
 const CONTACT_ADDRESS_OPTION_VALUE = '__contact_address__';
+const QUICK_CREATE_CONTACT_TYPE = 'Customer';
 
 const fallbackStatusLabels = {
   quoted: 'Quoted',
@@ -1251,7 +1252,10 @@ function renderContactResults(contacts) {
   state.contactResults = contacts.slice(0, 8);
 
   if (state.contactResults.length === 0) {
-    elements.contactResults.append(createContactResultStatus('No matching contacts.'));
+    elements.contactResults.append(
+      createContactResultStatus('No matching contacts.'),
+      createQuickCreateContactButton()
+    );
     return;
   }
 
@@ -1283,7 +1287,23 @@ function createContactResultStatus(message) {
   return status;
 }
 
+function createQuickCreateContactButton() {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'secondary-action compact-action jobs-contact-create-action';
+  button.dataset.quickCreateContact = 'true';
+  button.textContent = 'Create customer/contact';
+  return button;
+}
+
 function handleContactResultClick(event) {
+  const quickCreateButton = event.target.closest('[data-quick-create-contact]');
+
+  if (quickCreateButton) {
+    handleQuickCreateContact(quickCreateButton);
+    return;
+  }
+
   const button = event.target.closest('[data-contact-id]');
 
   if (!button) {
@@ -1295,6 +1315,159 @@ function handleContactResultClick(event) {
   if (contact) {
     selectContactForWorkOrder(contact);
   }
+}
+
+async function handleQuickCreateContact(button) {
+  if (state.selectedContact?.id) {
+    setFormMessage('A customer/contact is already selected.', true);
+    return;
+  }
+
+  const payload = getQuickCreateContactPayload();
+  const validationError = validateQuickCreateContactPayload(payload);
+
+  if (validationError) {
+    setFormMessage(validationError, true);
+    return;
+  }
+
+  await withBusyButton(button, async () => {
+    try {
+      const existingMatches = await findExactContactMatches(payload);
+
+      if (existingMatches.length > 0) {
+        renderContactResults(existingMatches);
+        setFormMessage('A customer/contact with that phone or email already exists. Select it from the results.', true);
+        return;
+      }
+
+      const result = await fetchJson(endpoints.contacts, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!result.contact?.id) {
+        throw new Error('Customer/contact could not be created.');
+      }
+
+      await selectContactForWorkOrder(result.contact);
+      state.contactResults = [];
+      elements.contactResults.replaceChildren();
+      setFormMessage('Customer/contact created and selected.');
+    } catch (error) {
+      setFormMessage(error.message || 'Customer/contact could not be created. Your work order details were kept.', true);
+    }
+  });
+}
+
+function getQuickCreateContactPayload() {
+  const search = clean(elements.contactSearch.value);
+  const contactPersonName = clean(elements.form.elements.contactPersonName.value);
+  const contactPersonPhone = clean(elements.form.elements.contactPersonPhone.value);
+  const contactPersonEmail = clean(elements.form.elements.contactPersonEmail.value).toLowerCase();
+  const address = getQuickCreateContactAddress();
+  const searchAsEmail = search.includes('@') ? search.toLowerCase() : '';
+  const searchAsPhone = !searchAsEmail && /[0-9]{3,}/.test(search) ? search : '';
+
+  return {
+    contactTypeId: null,
+    contactTypeOther: QUICK_CREATE_CONTACT_TYPE,
+    displayName: contactPersonName || (!searchAsEmail && !searchAsPhone ? search : ''),
+    companyName: '',
+    phone: contactPersonPhone || searchAsPhone,
+    email: contactPersonEmail || searchAsEmail,
+    preferredContactMethod: contactPersonPhone || searchAsPhone ? 'phone' : 'email',
+    addressLine1: address.addressLine1,
+    addressLine2: address.addressLine2,
+    city: address.city,
+    province: address.province,
+    postalCode: address.postalCode,
+    country: address.country,
+    notes: '',
+    tags: '',
+    status: 'active'
+  };
+}
+
+function getQuickCreateContactAddress() {
+  const roles = elements.locationModeSelect.value === 'pickup_delivery' ? ['pickup', 'delivery'] : ['service'];
+
+  for (const role of roles) {
+    const address = {
+      addressLine1: clean(readLocationField(role, 'addressLine1')),
+      addressLine2: clean(readLocationField(role, 'addressLine2')),
+      city: clean(readLocationField(role, 'city')),
+      province: clean(readLocationField(role, 'province')) || 'BC',
+      postalCode: clean(readLocationField(role, 'postalCode')),
+      country: 'Canada'
+    };
+
+    if (address.addressLine1 || address.addressLine2 || address.city || address.postalCode) {
+      return address;
+    }
+  }
+
+  return {
+    addressLine1: '',
+    addressLine2: '',
+    city: '',
+    province: 'BC',
+    postalCode: '',
+    country: 'Canada'
+  };
+}
+
+function validateQuickCreateContactPayload(payload) {
+  if (!clean(payload.displayName)) {
+    return 'Add a customer/contact name before creating a contact.';
+  }
+
+  if (!clean(payload.phone) && !clean(payload.email)) {
+    return 'Add a phone number or email before creating a contact.';
+  }
+
+  return '';
+}
+
+async function findExactContactMatches(payload) {
+  const lookups = [];
+  const email = clean(payload.email).toLowerCase();
+  const phone = clean(payload.phone);
+
+  if (email) {
+    lookups.push({ field: 'email', value: email });
+  }
+
+  if (phone) {
+    lookups.push({ field: 'phone', value: phone });
+  }
+
+  if (lookups.length === 0) {
+    return [];
+  }
+
+  const results = await Promise.all(lookups.map(async (lookup) => {
+    const params = new URLSearchParams({ search: lookup.value });
+    const response = await fetchJson(`${endpoints.contacts}?${params}`);
+    return (response.contacts || []).filter((contact) => {
+      if (lookup.field === 'email') {
+        return clean(contact.email).toLowerCase() === lookup.value;
+      }
+
+      return clean(contact.phone) === lookup.value;
+    });
+  }));
+
+  const matches = new Map();
+
+  for (const contact of results.flat()) {
+    if (contact.id) {
+      matches.set(contact.id, contact);
+    }
+  }
+
+  return Array.from(matches.values());
 }
 
 async function selectContactForWorkOrder(contact) {

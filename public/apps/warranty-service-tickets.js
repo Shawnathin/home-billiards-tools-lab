@@ -3,7 +3,8 @@ const endpoints = {
   tickets: '/api/apps/warranty-service-tickets/tickets',
   ticket: (id) => `/api/apps/warranty-service-tickets/tickets/${id}`,
   summary: '/api/apps/warranty-service-tickets/summary',
-  contacts: '/api/apps/customers-contacts/contacts'
+  contacts: '/api/apps/customers-contacts/contacts',
+  intakeMatch: '/api/apps/customers-contacts/intake-match'
 };
 
 const fallbackStatusLabels = {
@@ -28,9 +29,12 @@ const state = {
   priorities: [],
   tickets: [],
   contactResults: [],
+  contactMatch: null,
   selectedContact: null,
   searchTimer: null,
-  contactSearchTimer: null
+  contactSearchTimer: null,
+  contactMatchTimer: null,
+  contactMatchRequestId: 0
 };
 
 const elements = {
@@ -42,6 +46,7 @@ const elements = {
   customIssueTypeField: document.getElementById('customIssueTypeField'),
   contactSearch: document.getElementById('ticketContactSearch'),
   contactResults: document.getElementById('ticketContactResults'),
+  contactMatchNotice: document.getElementById('ticketContactMatchNotice'),
   selectedContact: document.getElementById('ticketContactSelected'),
   clearContactButton: document.getElementById('clearTicketContactLink'),
   saveCustomerContact: document.getElementById('ticketSaveCustomerContact'),
@@ -82,7 +87,12 @@ function bindEvents() {
     window.clearTimeout(state.contactSearchTimer);
     state.contactSearchTimer = window.setTimeout(searchContactsForLink, 240);
   });
+  elements.form.elements.customerPhone.addEventListener('input', scheduleIntakeContactMatchCheck);
+  elements.form.elements.customerEmail.addEventListener('input', scheduleIntakeContactMatchCheck);
+  elements.form.elements.customerName.addEventListener('input', renderCurrentIntakeContactMatch);
+  elements.saveCustomerContact.addEventListener('change', renderCurrentIntakeContactMatch);
   elements.contactResults.addEventListener('click', handleContactResultClick);
+  elements.contactMatchNotice.addEventListener('click', handleContactMatchNoticeClick);
   elements.clearContactButton.addEventListener('click', clearSelectedContact);
   elements.refreshButton.addEventListener('click', () => {
     loadSummary();
@@ -569,6 +579,7 @@ function selectContactForTicket(contact) {
   elements.clearContactButton.disabled = false;
   setSaveCustomerContactDisabled(true);
   elements.contactResults.replaceChildren();
+  clearIntakeContactMatch({ invalidate: true });
 }
 
 function renderSelectedContact(contact) {
@@ -589,25 +600,139 @@ function renderSelectedContact(contact) {
   elements.selectedContact.classList.remove('is-hidden');
 }
 
-function clearSelectedContact() {
+function clearSelectedContact({ scheduleMatchCheck = true } = {}) {
   state.selectedContact = null;
   elements.form.elements.customerContactId.value = '';
   elements.clearContactButton.disabled = true;
   setSaveCustomerContactDisabled(false);
   renderSelectedContact(null);
+
+  if (scheduleMatchCheck) {
+    scheduleIntakeContactMatchCheck();
+  }
 }
 
 function resetContactLinkSearch() {
-  clearSelectedContact();
+  clearSelectedContact({ scheduleMatchCheck: false });
   elements.contactSearch.value = '';
   state.contactResults = [];
   elements.contactResults.replaceChildren();
+  clearIntakeContactMatch({ invalidate: true });
 }
 
 function setSaveCustomerContactDisabled(isDisabled) {
   if (elements.saveCustomerContact) {
     elements.saveCustomerContact.disabled = isDisabled;
   }
+}
+
+function scheduleIntakeContactMatchCheck() {
+  window.clearTimeout(state.contactMatchTimer);
+  state.contactMatchTimer = window.setTimeout(checkIntakeContactMatch, 320);
+}
+
+async function checkIntakeContactMatch() {
+  const customerContactId = clean(elements.form.elements.customerContactId.value);
+  const email = clean(elements.form.elements.customerEmail.value);
+  const phone = clean(elements.form.elements.customerPhone.value);
+
+  if (customerContactId || (!email && !phone)) {
+    clearIntakeContactMatch({ invalidate: true });
+    return;
+  }
+
+  const requestId = state.contactMatchRequestId + 1;
+  state.contactMatchRequestId = requestId;
+
+  const params = new URLSearchParams();
+
+  if (email) {
+    params.set('email', email);
+  }
+
+  if (phone) {
+    params.set('phone', phone);
+  }
+
+  try {
+    const payload = await fetchJson(`${endpoints.intakeMatch}?${params}`);
+
+    if (requestId !== state.contactMatchRequestId) {
+      return;
+    }
+
+    state.contactMatch = payload.match || null;
+    renderIntakeContactMatch(state.contactMatch);
+  } catch (error) {
+    if (requestId === state.contactMatchRequestId) {
+      clearIntakeContactMatch();
+    }
+  }
+}
+
+function renderCurrentIntakeContactMatch() {
+  renderIntakeContactMatch(state.contactMatch);
+}
+
+function renderIntakeContactMatch(match) {
+  elements.contactMatchNotice.replaceChildren();
+
+  if (!match || clean(elements.form.elements.customerContactId.value)) {
+    elements.contactMatchNotice.classList.add('is-hidden');
+    return;
+  }
+
+  const matchedOn = match.matchedOn === 'email' ? 'email' : 'phone';
+  const title = document.createElement('strong');
+  title.textContent = `Existing contact found: ${formatContactMatchTitle(match)}`;
+
+  const body = document.createElement('span');
+  body.textContent = elements.saveCustomerContact.checked
+    ? `This ${matchedOn} is already in Contacts. This intake will link to this contact when saved.`
+    : `This ${matchedOn} already exists in Contacts. Use this contact if this is the same customer.`;
+
+  elements.contactMatchNotice.append(title, body);
+
+  const metaText = [match.companyName, match.phone, match.email].filter(Boolean).join(' / ');
+
+  if (metaText) {
+    const meta = document.createElement('span');
+    meta.textContent = metaText;
+    elements.contactMatchNotice.append(meta);
+  }
+
+  if (enteredNameDiffersFromContact(match)) {
+    const nameNote = document.createElement('span');
+    nameNote.className = 'warranty-contact-match-note';
+    nameNote.textContent = 'Entered name differs from the existing contact name.';
+    elements.contactMatchNotice.append(nameNote);
+  }
+
+  const useButton = document.createElement('button');
+  useButton.type = 'button';
+  useButton.className = 'secondary-action compact-action';
+  useButton.dataset.contactMatchAction = 'use';
+  useButton.textContent = 'Use this contact';
+  elements.contactMatchNotice.append(useButton);
+  elements.contactMatchNotice.classList.remove('is-hidden');
+}
+
+function handleContactMatchNoticeClick(event) {
+  const button = event.target.closest('[data-contact-match-action="use"]');
+
+  if (button && state.contactMatch) {
+    selectContactForTicket(state.contactMatch);
+  }
+}
+
+function clearIntakeContactMatch({ invalidate = false } = {}) {
+  if (invalidate) {
+    state.contactMatchRequestId += 1;
+  }
+
+  state.contactMatch = null;
+  elements.contactMatchNotice.replaceChildren();
+  elements.contactMatchNotice.classList.add('is-hidden');
 }
 
 function createNotesBlock(ticket) {
@@ -783,6 +908,20 @@ function formatLinkedContact(ticket) {
 
 function formatContactLinkTitle(contact) {
   return [contact.contactNumber, contact.displayName].filter(Boolean).join(' / ') || 'Contact';
+}
+
+function formatContactMatchTitle(contact) {
+  return [contact.contactNumber, contact.displayName].filter(Boolean).join(' - ') || 'Contact';
+}
+
+function enteredNameDiffersFromContact(contact) {
+  const enteredName = normalizeComparison(elements.form.elements.customerName.value);
+  const contactName = normalizeComparison(contact.displayName);
+  return Boolean(enteredName && contactName && enteredName !== contactName);
+}
+
+function normalizeComparison(value) {
+  return clean(value).toLowerCase().replace(/\s+/g, ' ');
 }
 
 function formatStatus(status) {

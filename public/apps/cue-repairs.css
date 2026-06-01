@@ -168,6 +168,7 @@
 .cue-contact-link,
 .cue-contact-results,
 .cue-selected-contact,
+.cue-contact-match-notice,
 .cue-notes-block {
   display: grid;
   gap: 12px;
@@ -284,13 +285,15 @@ textarea:focus {
 }
 
 .cue-contact-result strong,
-.cue-selected-contact strong {
+.cue-selected-contact strong,
+.cue-contact-match-notice strong {
   color: var(--brand-dark);
   overflow-wrap: anywhere;
 }
 
 .cue-contact-result span,
 .cue-selected-contact span,
+.cue-contact-match-notice span,
 .cue-contact-result-status {
   color: var(--muted);
   font-size: 0.82rem;
@@ -309,6 +312,23 @@ textarea:focus {
   border: 1px solid rgba(92, 184, 133, 0.24);
   border-radius: var(--radius);
   background: rgba(92, 184, 133, 0.12);
+}
+
+.cue-contact-match-notice {
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid rgba(248, 203, 86, 0.48);
+  border-radius: var(--radius);
+  background: rgba(248, 203, 86, 0.14);
+}
+
+.cue-contact-match-notice button {
+  justify-self: start;
+  margin-top: 2px;
+}
+
+.cue-contact-match-note {
+  color: #755a12 !important;
 }
 
 .compact-checkbox {

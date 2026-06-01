@@ -19,6 +19,7 @@ const PREFERRED_CONTACT_METHOD_OPTIONS = [
   ['unknown', 'Unknown']
 ];
 
+const ACTIVE_INTAKE_MATCH_STATUSES = ['active', 'review_needed'];
 const STATUSES = new Set(STATUS_OPTIONS.map(([value]) => value));
 const PREFERRED_CONTACT_METHODS = new Set(PREFERRED_CONTACT_METHOD_OPTIONS.map(([value]) => value));
 
@@ -85,6 +86,23 @@ customersContactsApiRouter.get('/contacts', async (req, res, next) => {
     res.json({ contacts: result.rows.map(formatContact) });
   } catch (error) {
     next(error);
+  }
+});
+
+customersContactsApiRouter.get('/intake-match', async (req, res) => {
+  try {
+    const email = cleanText(req.query.email, { maxLength: 240, lowercase: true });
+    const phone = cleanText(req.query.phone, { maxLength: 80 });
+
+    if (!email && !phone) {
+      return res.json({ match: null });
+    }
+
+    const match = await findIntakeContactMatch({ email, phone });
+    return res.json({ match: formatIntakeContactMatch(match) });
+  } catch (error) {
+    console.warn('Customers / Contacts intake match lookup failed:', error.message);
+    return res.status(500).json({ error: 'Contact match could not be checked.' });
   }
 });
 
@@ -484,6 +502,66 @@ async function getContactById(id) {
   return result.rows[0] || null;
 }
 
+async function findIntakeContactMatch({ email, phone }) {
+  if (email) {
+    const result = await pool.query(
+      `
+        select
+          id,
+          contact_number as "contactNumber",
+          display_name as "displayName",
+          company_name as "companyName",
+          phone,
+          email,
+          status,
+          'email' as "matchedOn"
+        from customer_contacts
+        where status = any($2::text[])
+          and lower(btrim(coalesce(email, ''))) = $1
+        order by
+          case when status = 'active' then 0 else 1 end,
+          updated_at desc
+        limit 1
+      `,
+      [email, ACTIVE_INTAKE_MATCH_STATUSES]
+    );
+
+    if (result.rows[0]) {
+      return result.rows[0];
+    }
+  }
+
+  if (phone) {
+    const result = await pool.query(
+      `
+        select
+          id,
+          contact_number as "contactNumber",
+          display_name as "displayName",
+          company_name as "companyName",
+          phone,
+          email,
+          status,
+          'phone' as "matchedOn"
+        from customer_contacts
+        where status = any($2::text[])
+          and btrim(coalesce(phone, '')) = $1
+        order by
+          case when status = 'active' then 0 else 1 end,
+          updated_at desc
+        limit 1
+      `,
+      [phone, ACTIVE_INTAKE_MATCH_STATUSES]
+    );
+
+    if (result.rows[0]) {
+      return result.rows[0];
+    }
+  }
+
+  return null;
+}
+
 async function getRelatedRecords(contactId) {
   const [cueRepairsResult, warrantyTicketsResult] = await Promise.all([
     pool.query(
@@ -742,6 +820,23 @@ function formatContact(contact) {
   return {
     ...contact,
     isArchived: contact.status === 'archived'
+  };
+}
+
+function formatIntakeContactMatch(contact) {
+  if (!contact) {
+    return null;
+  }
+
+  return {
+    id: contact.id,
+    contactNumber: contact.contactNumber || '',
+    displayName: contact.displayName || '',
+    companyName: contact.companyName || '',
+    phone: contact.phone || '',
+    email: contact.email || '',
+    status: contact.status || '',
+    matchedOn: contact.matchedOn === 'email' ? 'email' : 'phone'
   };
 }
 

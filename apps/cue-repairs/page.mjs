@@ -86,6 +86,7 @@ export function renderCueRepairsPage({ user }) {
                 </label>
                 <div id="repairContactSelected" class="cue-selected-contact is-hidden" aria-live="polite"></div>
                 <div id="repairContactResults" class="cue-contact-results" aria-live="polite"></div>
+                <div id="repairContactMatchNotice" class="cue-contact-match-notice is-hidden" aria-live="polite"></div>
                 <label class="cue-checkbox-row cue-contact-capture-option">
                   <input id="repairSaveCustomerContact" name="saveCustomerContact" type="checkbox" value="true" checked />
                   Save as new contact if no existing contact is linked

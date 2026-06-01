@@ -171,6 +171,7 @@
 .warranty-contact-link,
 .warranty-contact-results,
 .warranty-selected-contact,
+.warranty-contact-match-notice,
 .warranty-control-notes-grid {
   display: grid;
   gap: 12px;
@@ -293,13 +294,15 @@ textarea:focus {
 }
 
 .warranty-contact-result strong,
-.warranty-selected-contact strong {
+.warranty-selected-contact strong,
+.warranty-contact-match-notice strong {
   color: var(--brand-dark);
   overflow-wrap: anywhere;
 }
 
 .warranty-contact-result span,
 .warranty-selected-contact span,
+.warranty-contact-match-notice span,
 .warranty-contact-result-status {
   color: var(--muted);
   font-size: 0.82rem;
@@ -318,6 +321,23 @@ textarea:focus {
   border: 1px solid rgba(92, 184, 133, 0.24);
   border-radius: var(--radius);
   background: rgba(92, 184, 133, 0.12);
+}
+
+.warranty-contact-match-notice {
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid rgba(248, 203, 86, 0.48);
+  border-radius: var(--radius);
+  background: rgba(248, 203, 86, 0.14);
+}
+
+.warranty-contact-match-notice button {
+  justify-self: start;
+  margin-top: 2px;
+}
+
+.warranty-contact-match-note {
+  color: #755a12 !important;
 }
 
 .compact-checkbox {

@@ -432,9 +432,26 @@ textarea:focus {
   background: rgba(255, 255, 255, 0.44);
 }
 
+.contacts-related-row.is-outstanding {
+  border-color: rgba(192, 116, 28, 0.34);
+  background: rgba(248, 184, 86, 0.16);
+}
+
 .contacts-related-row strong {
   color: var(--brand-dark);
   overflow-wrap: anywhere;
+}
+
+.contacts-related-row em {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: #8a4f00;
+  background: rgba(248, 184, 86, 0.28);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 900;
+  text-transform: uppercase;
 }
 
 .contacts-related-row span,

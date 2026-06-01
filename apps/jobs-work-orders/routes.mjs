@@ -282,6 +282,37 @@ jobsWorkOrdersApiRouter.patch('/work-orders/:id', async (req, res, next) => {
   }
 });
 
+jobsWorkOrdersApiRouter.post('/work-orders/:id/status', async (req, res, next) => {
+  try {
+    const id = readUuid(req.params.id);
+
+    if (!id) {
+      return res.status(400).json({ error: 'A valid work order id is required.' });
+    }
+
+    const existing = await getWorkOrderById(id);
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Work order not found.' });
+    }
+
+    const normalized = normalizeStatusOnlyInput(req.body || {}, existing);
+
+    if (normalized.error) {
+      return res.status(400).json({ error: normalized.error });
+    }
+
+    const workOrder = await updateWorkOrderStatus(id, normalized.data);
+    return res.json({ workOrder: formatWorkOrder(workOrder) });
+  } catch (error) {
+    if (isValidationConstraintError(error)) {
+      return res.status(400).json({ error: 'Status could not be saved. Check the work order requirements and try again.' });
+    }
+
+    return next(error);
+  }
+});
+
 jobsWorkOrdersApiRouter.get('/work-orders/:id/visits', async (req, res, next) => {
   try {
     const workOrderId = readUuid(req.params.id);
@@ -819,6 +850,47 @@ async function updateWorkOrder(id, existing, data) {
   } finally {
     client.release();
   }
+}
+
+async function updateWorkOrderStatus(id, data) {
+  const assignments = ['status = $1'];
+  const values = [data.status];
+
+  if (data.completionNotesProvided) {
+    values.push(data.completionNotes);
+    assignments.push(`completion_notes = $${values.length}`);
+  }
+
+  if (data.cancellationReasonProvided) {
+    values.push(data.cancellationReason);
+    assignments.push(`cancellation_reason = $${values.length}`);
+  }
+
+  if (data.cancellationReasonCodeProvided) {
+    values.push(data.cancellationReasonCode);
+    assignments.push(`cancellation_reason_code = $${values.length}`);
+  }
+
+  if (data.status === 'completed') {
+    assignments.push('completed_at = coalesce(completed_at, now())');
+  }
+
+  if (data.status === 'cancelled') {
+    assignments.push('cancelled_at = coalesce(cancelled_at, now())');
+  }
+
+  values.push(id);
+
+  await pool.query(
+    `
+      update job_work_orders
+      set ${assignments.join(', ')}
+      where id = $${values.length}
+    `,
+    values
+  );
+
+  return getWorkOrderById(id);
 }
 
 function buildWorkOrderDbFields(data, existing) {
@@ -1631,6 +1703,64 @@ async function validateWarrantyServiceTicket(sourceWarrantyServiceTicketId) {
   }
 }
 
+function normalizeStatusOnlyInput(rawInput, existing) {
+  const input = rawInput || {};
+  const status = cleanText(getInput(input, 'status'), { maxLength: 80 });
+
+  if (!status) {
+    return { error: 'Choose a status to apply.' };
+  }
+
+  if (!STATUSES.has(status)) {
+    return { error: 'Choose a valid work order status.' };
+  }
+
+  if (status === 'booked') {
+    const bookingError = validateExistingBookingReadiness(existing);
+
+    if (bookingError) {
+      return { error: bookingError };
+    }
+  }
+
+  const cancellationReasonCodeProvided = hasInput(input, 'cancellationReasonCode');
+  const cancellationReasonCode = cancellationReasonCodeProvided
+    ? cleanText(getInput(input, 'cancellationReasonCode'), { maxLength: 80 })
+    : existing.cancellationReasonCode;
+
+  if (cancellationReasonCodeProvided && cancellationReasonCode && !CANCELLATION_REASONS.has(cancellationReasonCode)) {
+    return { error: 'Choose a valid cancellation reason.' };
+  }
+
+  const completionNotesProvided = hasInput(input, 'completionNotes');
+  const cancellationReasonProvided = hasInput(input, 'cancellationReason');
+
+  return {
+    data: {
+      status,
+      completionNotesProvided,
+      completionNotes: completionNotesProvided
+        ? cleanText(getInput(input, 'completionNotes'), { maxLength: MAX_TEXT_LENGTH })
+        : existing.completionNotes,
+      cancellationReasonProvided,
+      cancellationReason: cancellationReasonProvided
+        ? cleanText(getInput(input, 'cancellationReason'), { maxLength: MAX_TEXT_LENGTH })
+        : existing.cancellationReason,
+      cancellationReasonCodeProvided,
+      cancellationReasonCode
+    }
+  };
+}
+
+function validateExistingBookingReadiness(existing) {
+  const data = {
+    locationMode: existing.locationMode || 'service',
+    locations: existing.locations || [],
+    visits: existing.visits || []
+  };
+  return validateRequiredLocations(data) || validateRequiredBookedVisit(data);
+}
+
 async function normalizeWorkOrderInput(rawInput, existing) {
   const input = rawInput || {};
   const customerContactId = readClean(input, existing, 'customerContactId', { maxLength: 80 });
@@ -2025,11 +2155,11 @@ function normalizeVisitInput(rawVisit, existingVisit, fallbackVisitNumber, statu
   }
 
   if (scheduleState === 'booked' && !scheduledDate.value) {
-    return { error: 'Booked visits need a scheduled date.' };
+    return { error: 'Booked work orders need a booked visit date.' };
   }
 
   if (scheduleState === 'booked' && !anytime && !finalArrivalWindow && !startTime.value) {
-    return { error: 'Booked visits need an arrival window, Anytime, or a start time.' };
+    return { error: 'Booked work orders need an arrival window, Anytime, or a start time.' };
   }
 
   return {
@@ -2061,7 +2191,7 @@ function normalizeVisitInput(rawVisit, existingVisit, fallbackVisitNumber, statu
 
 function validateWorkOrderData(data) {
   if (!data.customerContactId || !UUID_PATTERN.test(data.customerContactId)) {
-    return 'Choose a customer/contact before creating a work order.';
+    return 'Choose a customer before creating a work order.';
   }
 
   if (!data.customerName) {
@@ -2135,7 +2265,7 @@ function validateRequiredLocations(data) {
   const service = data.locations.find((location) => location.role === 'service');
 
   if (!locationHasBookableAddress(service)) {
-    return 'Service work orders need a service address before booking.';
+    return 'Add a service address before booking.';
   }
 
   return '';
@@ -2145,15 +2275,15 @@ function validateRequiredBookedVisit(data) {
   const bookedVisit = data.visits.find((visit) => visit.scheduleState === 'booked' && visit.visitStatus !== 'cancelled');
 
   if (!bookedVisit) {
-    return 'Booked work orders need at least one booked visit.';
+    return 'Booked work orders need a booked visit date.';
   }
 
   if (!bookedVisit.scheduledDate) {
-    return 'Booked visits need a scheduled date.';
+    return 'Booked work orders need a booked visit date.';
   }
 
   if (!bookedVisit.anytime && !bookedVisit.arrivalWindowLabel && !bookedVisit.startTime) {
-    return 'Booked visits need an arrival window, Anytime, or a start time.';
+    return 'Booked work orders need an arrival window, Anytime, or a start time.';
   }
 
   return '';
@@ -2403,9 +2533,69 @@ function formatWorkOrder(workOrder) {
     isArchived: Boolean(workOrder.archivedAt),
     isActive: !workOrder.archivedAt && ACTIVE_STATUSES.has(workOrder.status),
     isCompleted: workOrder.status === 'completed',
+    isInvoiced: workOrder.status === 'invoiced',
+    isOutstanding: workOrder.status === 'invoiced',
     isCancelled: workOrder.status === 'cancelled',
-    isPaid: workOrder.status === 'paid'
+    isPaid: workOrder.status === 'paid',
+    lifecycleLabel: formatLifecycleLabel(workOrder.status),
+    lifecycleDetail: formatLifecycleDetail(workOrder.status)
   };
+}
+
+function formatLifecycleLabel(status) {
+  if (status === 'completed') {
+    return 'Work done';
+  }
+
+  if (status === 'invoiced') {
+    return 'Outstanding / not paid';
+  }
+
+  if (status === 'paid') {
+    return 'Closed / paid';
+  }
+
+  if (status === 'cancelled') {
+    return 'Cancelled';
+  }
+
+  if (status === 'booked') {
+    return 'Booked visit';
+  }
+
+  if (status === 'quoted') {
+    return 'Quoted';
+  }
+
+  return 'Needs scheduling';
+}
+
+function formatLifecycleDetail(status) {
+  if (status === 'completed') {
+    return 'Crew/service work is done.';
+  }
+
+  if (status === 'invoiced') {
+    return 'Office has invoiced the job; payment is still outstanding.';
+  }
+
+  if (status === 'paid') {
+    return 'Job is fully done and payment/paperwork is finalized.';
+  }
+
+  if (status === 'cancelled') {
+    return 'Work order is cancelled but retained for history.';
+  }
+
+  if (status === 'booked') {
+    return 'A booked visit is on the schedule.';
+  }
+
+  if (status === 'quoted') {
+    return 'Quoted work that has not been scheduled yet.';
+  }
+
+  return 'Ready for office follow-up and scheduling.';
 }
 
 function formatLocationSummary(locations, workOrder) {

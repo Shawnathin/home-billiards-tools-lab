@@ -1316,14 +1316,51 @@ function formatRelatedTicket(ticket) {
 }
 
 function formatRelatedWorkOrder(workOrder) {
+  const status = workOrder.status || '';
+
   return {
     ...workOrder,
     title: workOrder.calendarTitle || workOrder.title,
     city: workOrder.city || '',
     scheduleSummary: workOrder.scheduleSummary || '',
     visitType: workOrder.visitType || '',
-    assignedTo: workOrder.assignedTo || ''
+    assignedTo: workOrder.assignedTo || '',
+    isOutstanding: status === 'invoiced',
+    isClosedPaid: status === 'paid',
+    statusSummary: formatRelatedWorkOrderStatus(status)
   };
+}
+
+function formatRelatedWorkOrderStatus(status) {
+  if (status === 'invoiced') {
+    return 'Invoiced - outstanding / not paid';
+  }
+
+  if (status === 'paid') {
+    return 'Paid - closed / paid';
+  }
+
+  if (status === 'completed') {
+    return 'Completed - work done';
+  }
+
+  if (status === 'booked') {
+    return 'Booked';
+  }
+
+  if (status === 'to_be_scheduled') {
+    return 'To be scheduled';
+  }
+
+  if (status === 'quoted') {
+    return 'Quoted';
+  }
+
+  if (status === 'cancelled') {
+    return 'Cancelled';
+  }
+
+  return cleanText(status, { maxLength: MAX_SHORT_TEXT_LENGTH }) || '';
 }
 
 function formatProperty(property) {

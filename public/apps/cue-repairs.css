@@ -232,6 +232,14 @@ textarea:focus {
   box-shadow: none;
 }
 
+.cue-contact-capture-option {
+  margin-top: -2px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
 .cue-contact-link {
   padding: 12px;
   border: 1px solid rgba(61, 111, 131, 0.14);

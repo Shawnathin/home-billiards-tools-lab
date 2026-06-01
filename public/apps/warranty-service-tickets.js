@@ -44,6 +44,7 @@ const elements = {
   contactResults: document.getElementById('ticketContactResults'),
   selectedContact: document.getElementById('ticketContactSelected'),
   clearContactButton: document.getElementById('clearTicketContactLink'),
+  saveCustomerContact: document.getElementById('ticketSaveCustomerContact'),
   statusSelect: document.getElementById('statusSelect'),
   prioritySelect: document.getElementById('prioritySelect'),
   list: document.getElementById('ticketList'),
@@ -566,6 +567,7 @@ function selectContactForTicket(contact) {
   elements.form.elements.customerEmail.value = contact.email || '';
   renderSelectedContact(contact);
   elements.clearContactButton.disabled = false;
+  setSaveCustomerContactDisabled(true);
   elements.contactResults.replaceChildren();
 }
 
@@ -591,6 +593,7 @@ function clearSelectedContact() {
   state.selectedContact = null;
   elements.form.elements.customerContactId.value = '';
   elements.clearContactButton.disabled = true;
+  setSaveCustomerContactDisabled(false);
   renderSelectedContact(null);
 }
 
@@ -599,6 +602,12 @@ function resetContactLinkSearch() {
   elements.contactSearch.value = '';
   state.contactResults = [];
   elements.contactResults.replaceChildren();
+}
+
+function setSaveCustomerContactDisabled(isDisabled) {
+  if (elements.saveCustomerContact) {
+    elements.saveCustomerContact.disabled = isDisabled;
+  }
 }
 
 function createNotesBlock(ticket) {

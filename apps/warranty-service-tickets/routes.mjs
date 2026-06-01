@@ -1,4 +1,8 @@
 import express from 'express';
+import {
+  ContactCaptureValidationError,
+  resolveIntakeCustomerContact
+} from '../../src/customer-contact-capture.mjs';
 import { pool } from '../../src/db.mjs';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -136,6 +140,10 @@ warrantyServiceTicketsApiRouter.post('/tickets', async (req, res, next) => {
     const ticket = await insertTicket(normalized.data);
     return res.status(201).json({ ticket: formatTicket(ticket) });
   } catch (error) {
+    if (error instanceof ContactCaptureValidationError) {
+      return res.status(400).json({ error: error.message });
+    }
+
     if (isValidationConstraintError(error) || error.code === '23505') {
       return res.status(400).json({ error: 'Ticket could not be saved. Check required fields and ticket number uniqueness.' });
     }
@@ -283,8 +291,51 @@ function buildTicketFilters(query) {
 }
 
 async function insertTicket(data) {
+  let lastError = null;
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const client = await pool.connect();
+    let ticketId = null;
+
+    try {
+      await client.query('begin');
+
+      const customerContactId = await resolveIntakeCustomerContact(client, data, {
+        saveCustomerContact: data.saveCustomerContact,
+        sourceNote: 'Created from Warranty / Service Tickets intake.'
+      });
+      ticketId = await insertTicketRow(client, { ...data, customerContactId });
+
+      await client.query('commit');
+    } catch (error) {
+      await client.query('rollback').catch((rollbackError) => {
+        console.warn('Warranty / Service Tickets transaction rollback failed:', rollbackError.message);
+      });
+
+      if (error instanceof ContactCaptureValidationError) {
+        throw error;
+      }
+
+      lastError = error;
+
+      if (error.code !== '23505') {
+        throw error;
+      }
+
+      continue;
+    } finally {
+      client.release();
+    }
+
+    return getTicketById(ticketId);
+  }
+
+  throw lastError;
+}
+
+async function insertTicketRow(client, data) {
   const timestampFields = getTimestampUpdates({}, data.status);
-  const result = await pool.query(
+  const result = await client.query(
     `
       insert into warranty_service_tickets (
         customer_name,
@@ -332,7 +383,7 @@ async function insertTicket(data) {
     ]
   );
 
-  return getTicketById(result.rows[0].id);
+  return result.rows[0].id;
 }
 
 async function updateTicket(id, existing, data) {
@@ -437,6 +488,7 @@ async function normalizeTicketInput(rawInput, existing) {
     customerPhone: readClean(input, existing, 'customerPhone', { maxLength: 80 }),
     customerEmail: readClean(input, existing, 'customerEmail', { maxLength: 240, lowercase: true }),
     customerContactId: readClean(input, existing, 'customerContactId', { maxLength: 80 }),
+    saveCustomerContact: readBoolean(hasInput(input, 'saveCustomerContact') ? getInput(input, 'saveCustomerContact') : false),
     issueTypeId: readClean(input, existing, 'issueTypeId', { maxLength: 80 }),
     issueTypeOther: readClean(input, existing, 'issueTypeOther', { maxLength: MAX_SHORT_TEXT_LENGTH }),
     productInvolved: readClean(input, existing, 'productInvolved', { maxLength: MAX_SHORT_TEXT_LENGTH }),

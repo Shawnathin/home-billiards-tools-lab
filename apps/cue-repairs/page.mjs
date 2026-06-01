@@ -74,6 +74,24 @@ export function renderCueRepairsPage({ user }) {
             </div>
 
             <form id="repairForm" class="cue-form">
+              <section class="cue-contact-link" aria-label="Search contacts">
+                <div class="cue-contact-link-heading">
+                  <strong>Search contacts</strong>
+                  <button id="clearRepairContactLink" class="secondary-action compact-action" type="button" disabled>Clear</button>
+                </div>
+                <input name="customerContactId" type="hidden" />
+                <label>
+                  Search
+                  <input id="repairContactSearch" type="search" placeholder="Name, phone, email, company, contact number" autocomplete="off" />
+                </label>
+                <div id="repairContactSelected" class="cue-selected-contact is-hidden" aria-live="polite"></div>
+                <div id="repairContactResults" class="cue-contact-results" aria-live="polite"></div>
+                <label class="cue-checkbox-row cue-contact-capture-option">
+                  <input id="repairSaveCustomerContact" name="saveCustomerContact" type="checkbox" value="true" checked />
+                  Save as new contact if no existing contact is linked
+                </label>
+              </section>
+
               <div class="cue-field-grid two-columns">
                 <label>
                   Customer name
@@ -89,20 +107,6 @@ export function renderCueRepairsPage({ user }) {
                 Email
                 <input name="customerEmail" type="email" autocomplete="email" />
               </label>
-
-              <section class="cue-contact-link" aria-label="Link customer or contact">
-                <div class="cue-contact-link-heading">
-                  <strong>Link customer/contact</strong>
-                  <button id="clearRepairContactLink" class="secondary-action compact-action" type="button" disabled>Clear</button>
-                </div>
-                <input name="customerContactId" type="hidden" />
-                <label>
-                  Search contacts
-                  <input id="repairContactSearch" type="search" placeholder="Name, phone, email, company, contact number" autocomplete="off" />
-                </label>
-                <div id="repairContactSelected" class="cue-selected-contact is-hidden" aria-live="polite"></div>
-                <div id="repairContactResults" class="cue-contact-results" aria-live="polite"></div>
-              </section>
 
               <label>
                 Cue description

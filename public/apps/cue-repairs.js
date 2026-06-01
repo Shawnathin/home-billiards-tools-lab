@@ -35,6 +35,7 @@ const elements = {
   contactResults: document.getElementById('repairContactResults'),
   selectedContact: document.getElementById('repairContactSelected'),
   clearContactButton: document.getElementById('clearRepairContactLink'),
+  saveCustomerContact: document.getElementById('repairSaveCustomerContact'),
   list: document.getElementById('repairList'),
   listStatus: document.getElementById('cueListStatus'),
   refreshButton: document.getElementById('refreshRepairs'),
@@ -483,6 +484,7 @@ function selectContactForRepair(contact) {
   elements.form.elements.customerEmail.value = contact.email || '';
   renderSelectedContact(contact);
   elements.clearContactButton.disabled = false;
+  setSaveCustomerContactDisabled(true);
   elements.contactResults.replaceChildren();
 }
 
@@ -508,6 +510,7 @@ function clearSelectedContact() {
   state.selectedContact = null;
   elements.form.elements.customerContactId.value = '';
   elements.clearContactButton.disabled = true;
+  setSaveCustomerContactDisabled(false);
   renderSelectedContact(null);
 }
 
@@ -516,6 +519,12 @@ function resetContactLinkSearch() {
   elements.contactSearch.value = '';
   state.contactResults = [];
   elements.contactResults.replaceChildren();
+}
+
+function setSaveCustomerContactDisabled(isDisabled) {
+  if (elements.saveCustomerContact) {
+    elements.saveCustomerContact.disabled = isDisabled;
+  }
 }
 
 function createNotesBlock(repair) {

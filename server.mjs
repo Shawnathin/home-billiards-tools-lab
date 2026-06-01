@@ -5,6 +5,8 @@ import connectPgSimple from 'connect-pg-simple';
 import bcrypt from 'bcryptjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { renderCueRepairsPage } from './apps/cue-repairs/page.mjs';
+import { cueRepairsApiRouter } from './apps/cue-repairs/routes.mjs';
 import { renderServicesAndQuotesPage } from './apps/services-and-quotes/page.mjs';
 import { servicesAndQuotesApiRouter } from './apps/services-and-quotes/routes.mjs';
 import { appRegistry, getEnabledApps } from './src/app-registry.mjs';
@@ -142,6 +144,12 @@ app.get('/apps/services-and-quotes', requireAuth, (req, res) => {
 });
 
 app.use('/api/apps/services-and-quotes', requireAuth, servicesAndQuotesApiRouter);
+
+app.get('/apps/cue-repairs', requireAuth, (req, res) => {
+  res.send(renderCueRepairsPage({ user: req.session.user }));
+});
+
+app.use('/api/apps/cue-repairs', requireAuth, cueRepairsApiRouter);
 
 app.post('/logout', requireAuth, (req, res, next) => {
   req.session.destroy((error) => {

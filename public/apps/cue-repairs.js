@@ -6,11 +6,8 @@ const endpoints = {
 
 const statusLabels = {
   received: 'Received',
-  assessing: 'Assessing',
-  waiting_approval: 'Waiting approval',
-  approved: 'Approved',
   in_progress: 'In progress',
-  waiting_for_parts: 'Waiting for parts',
+  needs_attention: 'Needs attention',
   ready_for_pickup: 'Ready for pickup',
   picked_up: 'Picked up',
   cancelled: 'Cancelled'
@@ -18,11 +15,6 @@ const statusLabels = {
 
 const statusOptions = Object.entries(statusLabels);
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-const moneyFormatter = new Intl.NumberFormat('en-CA', {
-  style: 'currency',
-  currency: 'CAD'
-});
 
 const state = {
   types: [],
@@ -43,10 +35,10 @@ const elements = {
   repairTypeFilter: document.getElementById('repairTypeFilter'),
   summary: {
     openRepairCount: document.getElementById('openRepairCount'),
-    waitingApprovalCount: document.getElementById('waitingApprovalCount'),
+    needsAttentionCount: document.getElementById('needsAttentionCount'),
     readyForPickupCount: document.getElementById('readyForPickupCount'),
     contactedNotPickedUpCount: document.getElementById('contactedNotPickedUpCount'),
-    completedCount: document.getElementById('completedCount'),
+    pickedUpCount: document.getElementById('pickedUpCount'),
     cancelledCount: document.getElementById('cancelledCount')
   }
 };
@@ -194,7 +186,6 @@ function getCreatePayload() {
     payload[key] = value;
   }
 
-  payload.estimateApproved = elements.form.elements.estimateApproved.checked;
   payload.repairTypeId = getSelectedRepairTypeId(payload.repairTypeId);
 
   if (payload.repairTypeId === 'custom') {
@@ -213,8 +204,8 @@ function validateCreatePayload(payload) {
     return 'Add a phone number or email.';
   }
 
-  if (!clean(payload.cueBrand) && !clean(payload.cueModel) && !clean(payload.cueDescription)) {
-    return 'Add a cue brand, model, or description.';
+  if (!clean(payload.cueDescription)) {
+    return 'Cue description is required.';
   }
 
   const selectedOption = elements.typeSelect.selectedOptions[0];
@@ -278,21 +269,25 @@ function createRepairCard(repair) {
   meta.className = 'cue-card-meta';
   meta.append(
     createMetaItem('Contact', [repair.customerPhone, repair.customerEmail].filter(Boolean).join(' / ')),
-    createMetaItem('Cue', formatCue(repair)),
+    createMetaItem('Cue description', repair.cueDescription),
     createMetaItem('Repair type', formatRepairType(repair)),
-    createMetaItem('Estimate', repair.formattedEstimate),
-    createMetaItem('Final price', repair.formattedFinalPrice || 'Not set'),
-    createMetaItem('Created', formatDate(repair.createdAt))
+    createMetaItem('Estimate', repair.formattedEstimate)
   );
 
   const timestamps = document.createElement('div');
   timestamps.className = 'cue-timestamp-row';
-  timestamps.append(
+  const timestampItems = [
     createTimestamp('Contacted', repair.customerContactedAt),
-    createTimestamp('Completed', repair.completedAt),
+    createTimestamp('Completed/ready', repair.completedAt),
     createTimestamp('Picked up', repair.pickedUpAt),
     createTimestamp('Cancelled', repair.cancelledAt)
-  );
+  ].filter(Boolean);
+
+  if (timestampItems.length > 0) {
+    timestamps.append(...timestampItems);
+  } else {
+    timestamps.classList.add('is-hidden');
+  }
 
   const notes = createNotesBlock(repair);
   const controls = createRepairControls(repair);
@@ -322,48 +317,17 @@ function createRepairControls(repair) {
 
   statusLabel.append(statusSelect);
 
-  const finalPriceLabel = document.createElement('label');
-  finalPriceLabel.textContent = 'Final price';
-  const finalPriceInput = document.createElement('input');
-  finalPriceInput.type = 'number';
-  finalPriceInput.min = '0';
-  finalPriceInput.step = '0.01';
-  finalPriceInput.inputMode = 'decimal';
-  finalPriceInput.placeholder = '0.00';
-  finalPriceInput.value = repair.finalPriceCents === null ? '' : centsToDollars(repair.finalPriceCents);
-  finalPriceInput.dataset.finalPriceInput = repair.id;
-  finalPriceLabel.append(finalPriceInput);
-
-  const notesLabel = document.createElement('label');
-  notesLabel.className = 'cue-notes-control';
-  notesLabel.textContent = 'Internal notes';
-  const notesInput = document.createElement('textarea');
-  notesInput.rows = 2;
-  notesInput.dataset.internalNotesInput = repair.id;
-  notesInput.value = repair.internalNotes || '';
-  notesLabel.append(notesInput);
-
-  const estimateApprovedLabel = document.createElement('label');
-  estimateApprovedLabel.className = 'cue-checkbox-row compact-checkbox';
-  const estimateApprovedInput = document.createElement('input');
-  estimateApprovedInput.type = 'checkbox';
-  estimateApprovedInput.checked = Boolean(repair.estimateApproved);
-  estimateApprovedInput.dataset.estimateApprovedInput = repair.id;
-  const estimateApprovedText = document.createElement('span');
-  estimateApprovedText.textContent = 'Estimate approved';
-  estimateApprovedLabel.append(estimateApprovedInput, estimateApprovedText);
-
   const actions = document.createElement('div');
   actions.className = 'cue-card-actions';
   actions.append(
     createActionButton('Save', 'save', repair.id, 'primary-action compact-action'),
     createActionButton('Contacted', 'contacted', repair.id),
-    createActionButton('Ready', 'ready', repair.id),
+    createActionButton('Ready for pickup', 'ready', repair.id),
     createActionButton('Picked up', 'picked-up', repair.id),
     createActionButton('Cancel', 'cancel', repair.id, 'secondary-action compact-action danger-action')
   );
 
-  controls.append(statusLabel, finalPriceLabel, notesLabel, estimateApprovedLabel, actions);
+  controls.append(statusLabel, actions);
   return controls;
 }
 
@@ -399,9 +363,6 @@ async function handleRepairAction(event) {
 
 function buildPatchPayload(repairId, action) {
   const statusInput = elements.list.querySelector(`[data-status-input="${repairId}"]`);
-  const finalPriceInput = elements.list.querySelector(`[data-final-price-input="${repairId}"]`);
-  const internalNotesInput = elements.list.querySelector(`[data-internal-notes-input="${repairId}"]`);
-  const estimateApprovedInput = elements.list.querySelector(`[data-estimate-approved-input="${repairId}"]`);
 
   if (action === 'contacted') {
     return { customerContacted: true };
@@ -421,10 +382,7 @@ function buildPatchPayload(repairId, action) {
 
   if (action === 'save') {
     return {
-      status: statusInput?.value || 'received',
-      finalPriceDollars: finalPriceInput?.value || '',
-      internalNotes: internalNotesInput?.value || '',
-      estimateApproved: Boolean(estimateApprovedInput?.checked)
+      status: statusInput?.value || 'received'
     };
   }
 
@@ -436,11 +394,11 @@ function createNotesBlock(repair) {
   notes.className = 'cue-notes-block';
 
   if (repair.intakeNotes) {
-    notes.append(createNote('Intake', repair.intakeNotes));
+    notes.append(createNote('Notes', repair.intakeNotes));
   }
 
   if (repair.internalNotes) {
-    notes.append(createNote('Staff', repair.internalNotes));
+    notes.append(createNote('Staff notes', repair.internalNotes));
   }
 
   if (!repair.intakeNotes && !repair.internalNotes) {
@@ -475,8 +433,12 @@ function createMetaItem(label, value) {
 }
 
 function createTimestamp(label, value) {
+  if (!value) {
+    return null;
+  }
+
   const item = document.createElement('span');
-  item.textContent = `${label}: ${value ? formatDate(value) : 'Not set'}`;
+  item.textContent = `${label}: ${formatDate(value)}`;
   return item;
 }
 
@@ -627,16 +589,6 @@ function formatRepairType(repair) {
   }
 
   return repair.repairTypeName || repair.repairTypeOther || 'Not set';
-}
-
-function formatCue(repair) {
-  const brandModel = [repair.cueBrand, repair.cueModel].filter(Boolean).join(' ');
-
-  if (brandModel && repair.cueDescription) {
-    return `${brandModel} - ${repair.cueDescription}`;
-  }
-
-  return brandModel || repair.cueDescription || 'Not set';
 }
 
 function formatStatus(status) {

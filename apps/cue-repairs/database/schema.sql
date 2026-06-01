@@ -66,11 +66,8 @@ create table if not exists cue_repair_jobs (
   constraint cue_repair_jobs_status_valid check (
     status in (
       'received',
-      'assessing',
-      'waiting_approval',
-      'approved',
       'in_progress',
-      'waiting_for_parts',
+      'needs_attention',
       'ready_for_pickup',
       'picked_up',
       'cancelled'

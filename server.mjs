@@ -9,6 +9,8 @@ import { renderCustomersContactsPage } from './apps/customers-contacts/page.mjs'
 import { customersContactsApiRouter } from './apps/customers-contacts/routes.mjs';
 import { renderCueRepairsPage } from './apps/cue-repairs/page.mjs';
 import { cueRepairsApiRouter } from './apps/cue-repairs/routes.mjs';
+import { renderFeedbackPage } from './apps/feedback/page.mjs';
+import { feedbackApiRouter } from './apps/feedback/routes.mjs';
 import { renderJobsWorkOrdersPage } from './apps/jobs-work-orders/page.mjs';
 import { jobsWorkOrdersApiRouter } from './apps/jobs-work-orders/routes.mjs';
 import { renderProductsInventoryPage } from './apps/products-inventory/page.mjs';
@@ -21,6 +23,7 @@ import { getEnabledApps } from './src/app-registry.mjs';
 import { pool } from './src/db.mjs';
 import { requireAuth } from './src/middleware.mjs';
 import { renderAppShell } from './src/utils/app-shell.mjs';
+import { canReviewFeedback } from './src/utils/feedback-access.mjs';
 import { escapeHtml } from './src/utils/html.mjs';
 
 const requiredEnv = ['DATABASE_URL', 'SESSION_SECRET'];
@@ -184,6 +187,16 @@ app.get('/apps/customers-contacts', requireAuth, (req, res) => {
 
 app.use('/api/apps/customers-contacts', requireAuth, customersContactsApiRouter);
 
+app.get('/apps/feedback', requireAuth, (req, res) => {
+  if (!canReviewFeedback(req.session.user)) {
+    return res.status(403).send('Feedback Inbox is only available to reviewers.');
+  }
+
+  return res.send(renderFeedbackPage({ user: req.session.user }));
+});
+
+app.use('/api/apps/feedback', requireAuth, feedbackApiRouter);
+
 app.post('/logout', requireAuth, (req, res, next) => {
   req.session.destroy((error) => {
     if (error) {
@@ -218,7 +231,7 @@ app.listen(port, () => {
 });
 
 function renderDashboardPage({ user }) {
-  const enabledApps = getEnabledApps();
+  const enabledApps = getEnabledApps({ user });
 
   return renderAppShell({
     title: 'Home Billiards Tools Lab',

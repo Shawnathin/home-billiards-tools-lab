@@ -33,7 +33,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -172,9 +173,23 @@ input {
 }
 
 select:focus,
-input:focus {
+input:focus,
+textarea:focus {
   border-color: rgba(79, 157, 159, 0.72);
   box-shadow: 0 0 0 4px rgba(115, 210, 214, 0.18), var(--frost-inset);
+}
+
+textarea {
+  width: 100%;
+  min-height: 92px;
+  border: 1px solid rgba(61, 111, 131, 0.2);
+  border-radius: var(--radius);
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.74);
+  outline: none;
+  box-shadow: var(--frost-inset);
+  padding: 10px 12px;
+  resize: vertical;
 }
 
 .primary-action,
@@ -305,6 +320,24 @@ input:focus {
   margin-top: auto;
   padding-top: 16px;
   border-top: 1px solid #e1e8ee;
+}
+
+.ops-feedback-button {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid rgba(40, 95, 106, 0.24);
+  border-radius: 6px;
+  color: var(--brand-dark);
+  background: #edf7f7;
+  font-weight: 850;
+}
+
+.ops-feedback-button:hover,
+.ops-feedback-button:focus-visible {
+  border-color: rgba(40, 95, 106, 0.42);
+  background: #ffffff;
+  box-shadow: 0 8px 18px rgba(23, 48, 68, 0.08);
+  outline: none;
 }
 
 .ops-user {
@@ -473,7 +506,8 @@ input:focus {
 .ops-main .inventory-shell,
 .ops-main .warranty-shell,
 .ops-main .contacts-shell,
-.ops-main .jobs-shell {
+.ops-main .jobs-shell,
+.ops-main .feedback-shell {
   min-height: 0;
   padding: 0;
 }
@@ -483,7 +517,8 @@ input:focus {
 .ops-main .inventory-panel,
 .ops-main .warranty-panel,
 .ops-main .contacts-panel,
-.ops-main .jobs-panel {
+.ops-main .jobs-panel,
+.ops-main .feedback-panel {
   width: 100%;
   margin: 0;
   border-color: #dce6ed;
@@ -497,10 +532,121 @@ input:focus {
 .ops-main .inventory-title-row,
 .ops-main .warranty-title-row,
 .ops-main .contacts-title-row,
-.ops-main .jobs-title-row {
+.ops-main .jobs-title-row,
+.ops-main .feedback-title-row {
   align-items: flex-start;
   padding-bottom: 18px;
   border-bottom: 1px solid #e0e8ef;
+}
+
+.has-feedback-modal {
+  overflow: hidden;
+}
+
+.feedback-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(23, 48, 68, 0.42);
+}
+
+.feedback-modal-backdrop[hidden] {
+  display: none;
+}
+
+.feedback-modal-panel {
+  width: min(560px, 100%);
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: var(--radius);
+  background: #ffffff;
+  box-shadow: 0 24px 72px rgba(23, 48, 68, 0.24);
+}
+
+.feedback-form {
+  display: grid;
+  gap: 14px;
+  padding: 22px;
+}
+
+.feedback-modal-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.feedback-modal-heading h2 {
+  margin: 0 0 8px;
+  font-size: 1.28rem;
+}
+
+.feedback-modal-heading p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.feedback-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--brand-dark);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.feedback-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.feedback-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.feedback-modal-actions button {
+  min-width: 130px;
+}
+
+.feedback-form-message {
+  min-height: 20px;
+  margin: 0;
+  color: var(--brand-dark);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.feedback-form-message.is-error {
+  color: #9d2f2f;
+}
+
+.feedback-icon-button {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(61, 111, 131, 0.18);
+  border-radius: 50%;
+  color: #29465b;
+  background: #f8fafc;
+  font-size: 1.18rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.feedback-icon-button:hover,
+.feedback-icon-button:focus-visible {
+  border-color: rgba(40, 95, 106, 0.36);
+  color: var(--brand-dark);
+  background: #ffffff;
+  outline: none;
 }
 
 @media (max-width: 1500px) {
@@ -571,6 +717,11 @@ input:focus {
     align-items: end;
   }
 
+  .ops-feedback-button {
+    width: auto;
+    padding: 0 16px;
+  }
+
   .ops-logout {
     width: auto;
     padding: 0 16px;
@@ -630,11 +781,28 @@ input:focus {
     grid-template-columns: 1fr;
   }
 
+  .ops-feedback-button {
+    width: 100%;
+  }
+
   .ops-brand img {
     grid-row: auto;
   }
 
   .ops-nav {
     grid-template-columns: 1fr;
+  }
+
+  .feedback-modal-grid,
+  .feedback-modal-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .feedback-modal-actions {
+    display: grid;
+  }
+
+  .feedback-modal-actions button {
+    width: 100%;
   }
 }

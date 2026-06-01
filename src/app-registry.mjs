@@ -65,6 +65,15 @@ export const appRegistry = [
     enabled: true
   },
   {
+    id: 'internal-messages',
+    name: 'Internal Messages',
+    description: 'Staff-only threads for general and record-linked internal communication.',
+    status: 'v1',
+    path: '/apps/internal-messages',
+    defaultAccess: 'all_logged_in_users',
+    enabled: true
+  },
+  {
     id: 'feedback',
     name: 'Feedback Inbox',
     description: 'Review internal staff feedback about broken, confusing, missing, or improvable tool behavior.',

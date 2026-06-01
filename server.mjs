@@ -11,6 +11,8 @@ import { renderCueRepairsPage } from './apps/cue-repairs/page.mjs';
 import { cueRepairsApiRouter } from './apps/cue-repairs/routes.mjs';
 import { renderFeedbackPage } from './apps/feedback/page.mjs';
 import { feedbackApiRouter } from './apps/feedback/routes.mjs';
+import { renderInternalMessagesPage } from './apps/internal-messages/page.mjs';
+import { internalMessagesApiRouter } from './apps/internal-messages/routes.mjs';
 import { renderJobsWorkOrdersPage } from './apps/jobs-work-orders/page.mjs';
 import { jobsWorkOrdersApiRouter } from './apps/jobs-work-orders/routes.mjs';
 import { renderProductsInventoryPage } from './apps/products-inventory/page.mjs';
@@ -194,6 +196,12 @@ app.get('/apps/customers-contacts', requireAuth, (req, res) => {
 });
 
 app.use('/api/apps/customers-contacts', requireAuth, customersContactsApiRouter);
+
+app.get('/apps/internal-messages', requireAuth, (req, res) => {
+  res.send(renderInternalMessagesPage({ user: req.session.user }));
+});
+
+app.use('/api/apps/internal-messages', requireAuth, internalMessagesApiRouter);
 
 app.get('/apps/feedback', requireAuth, (req, res) => {
   if (!canReviewFeedback(req.session.user)) {

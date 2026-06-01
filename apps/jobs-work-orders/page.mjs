@@ -5,56 +5,68 @@ export function renderJobsWorkOrdersPage({ user }) {
   const displayName = escapeHtml(user?.displayName || 'staff');
 
   return renderAppShell({
-    title: 'Jobs / Work Orders',
+    title: 'Work Orders',
     user,
     activePath: '/apps/jobs-work-orders',
     styles: ['/apps/jobs-work-orders.css'],
     scripts: ['/apps/jobs-work-orders.js'],
-    mainLabel: 'Jobs and Work Orders app',
+    mainLabel: 'Work Orders app',
     content: `
     <div class="jobs-shell">
-      <section class="jobs-panel glass-panel" aria-label="Jobs and Work Orders app">
+      <section class="jobs-panel glass-panel" aria-label="Work Orders app">
         <div class="jobs-title-row">
           <div>
-            <p class="eyebrow">Internal tools</p>
-            <h1>Jobs / Work Orders</h1>
-            <p class="welcome-line">Welcome, ${displayName}. Track installs, moves, deliveries, service jobs, and internal work orders.</p>
+            <p class="eyebrow">Operations workflow</p>
+            <h1>Work Orders</h1>
+            <p class="welcome-line">Welcome, ${displayName}. Create customer-linked work orders, visits, and service locations.</p>
           </div>
           <p class="jobs-mode-pill">v1</p>
         </div>
 
         <div class="jobs-summary-grid" aria-label="Work order summary">
           <article class="jobs-stat-card">
-            <span>Open</span>
-            <strong id="openWorkOrderCount">0</strong>
+            <span>Quoted</span>
+            <strong id="quotedWorkOrderCount">0</strong>
           </article>
           <article class="jobs-stat-card">
-            <span>Scheduled</span>
-            <strong id="scheduledWorkOrderCount">0</strong>
+            <span>To be scheduled</span>
+            <strong id="toBeScheduledWorkOrderCount">0</strong>
           </article>
           <article class="jobs-stat-card">
-            <span>In progress</span>
-            <strong id="inProgressWorkOrderCount">0</strong>
+            <span>Booked</span>
+            <strong id="bookedWorkOrderCount">0</strong>
           </article>
           <article class="jobs-stat-card">
-            <span>Waiting</span>
-            <strong id="waitingWorkOrderCount">0</strong>
-          </article>
-          <article class="jobs-stat-card">
-            <span>Urgent active</span>
-            <strong id="urgentActiveWorkOrderCount">0</strong>
+            <span>Booked visits</span>
+            <strong id="bookedVisitsCount">0</strong>
           </article>
           <article class="jobs-stat-card">
             <span>Completed</span>
             <strong id="completedWorkOrderCount">0</strong>
           </article>
           <article class="jobs-stat-card">
+            <span>Invoiced</span>
+            <strong id="invoicedWorkOrderCount">0</strong>
+          </article>
+          <article class="jobs-stat-card">
+            <span>Paid</span>
+            <strong id="paidWorkOrderCount">0</strong>
+          </article>
+          <article class="jobs-stat-card">
             <span>Cancelled</span>
             <strong id="cancelledWorkOrderCount">0</strong>
           </article>
           <article class="jobs-stat-card">
-            <span>Archived</span>
-            <strong id="archivedWorkOrderCount">0</strong>
+            <span>Unscheduled</span>
+            <strong id="unscheduledWorkOrderCount">0</strong>
+          </article>
+          <article class="jobs-stat-card">
+            <span>HBS Internal</span>
+            <strong id="hbsInternalWorkOrderCount">0</strong>
+          </article>
+          <article class="jobs-stat-card">
+            <span>HBS External</span>
+            <strong id="hbsExternalWorkOrderCount">0</strong>
           </article>
         </div>
 
@@ -62,18 +74,18 @@ export function renderJobsWorkOrdersPage({ user }) {
           <section class="jobs-intake-pane" aria-labelledby="workOrderIntakeHeading">
             <div class="jobs-pane-heading">
               <div>
-                <h2 id="workOrderIntakeHeading">Work order intake</h2>
+                <h2 id="workOrderIntakeHeading">Create work order</h2>
                 <p id="workOrderFormMessage" class="jobs-message" role="status" aria-live="polite"></p>
               </div>
               <button id="resetWorkOrderForm" class="secondary-action compact-action" type="button">New</button>
             </div>
 
             <form id="workOrderForm" class="jobs-form">
-              <section class="jobs-form-section" aria-label="Contact and customer">
-                <h3>Contact / Customer</h3>
+              <section class="jobs-form-section" aria-label="Customer">
+                <h3>Customer</h3>
                 <div class="jobs-contact-link">
                   <div class="jobs-contact-link-heading">
-                    <strong>Search contacts</strong>
+                    <strong>Customer search</strong>
                     <button id="clearWorkOrderContactLink" class="secondary-action compact-action" type="button" disabled>Clear</button>
                   </div>
                   <input name="customerContactId" type="hidden" />
@@ -85,144 +97,374 @@ export function renderJobsWorkOrdersPage({ user }) {
                   <div id="workOrderContactResults" class="jobs-contact-results" aria-live="polite"></div>
                 </div>
 
-                <label>
-                  Customer name
-                  <input name="customerName" type="text" autocomplete="name" required />
-                </label>
-
-                <label>
-                  Customer company
-                  <input name="customerCompany" type="text" autocomplete="organization" />
-                </label>
-
-                <div class="jobs-field-grid two-columns">
+                <div class="jobs-field-grid three-columns">
                   <label>
-                    Phone
-                    <input name="customerPhone" type="tel" autocomplete="tel" />
+                    Contact person
+                    <input name="contactPersonName" type="text" autocomplete="name" />
                   </label>
                   <label>
-                    Email
-                    <input name="customerEmail" type="email" autocomplete="email" />
+                    Contact phone
+                    <input name="contactPersonPhone" type="tel" autocomplete="tel" />
+                  </label>
+                  <label>
+                    Contact email
+                    <input name="contactPersonEmail" type="email" autocomplete="email" />
                   </label>
                 </div>
               </section>
 
-              <section class="jobs-form-section" aria-label="Job details">
-                <h3>Job Details</h3>
-                <div class="jobs-field-grid two-columns">
+              <section class="jobs-form-section" aria-label="Locations">
+                <h3>Locations</h3>
+                <label>
+                  Location mode
+                  <select id="locationModeSelect" name="locationMode">
+                    <option value="service">Service address</option>
+                    <option value="pickup_delivery">Pickup + delivery</option>
+                  </select>
+                </label>
+
+                <div class="jobs-location-group" data-location-panel="service">
+                  <div class="jobs-section-subhead">
+                    <strong>Service address</strong>
+                  </div>
                   <label>
-                    Job type
+                    Saved property
+                    <select id="servicePropertySelect" data-property-select="service">
+                      <option value="">Select saved property</option>
+                    </select>
+                  </label>
+                  <div class="jobs-field-grid two-columns">
+                    <label>
+                      Label
+                      <input data-location-field="service.label" type="text" />
+                    </label>
+                    <label>
+                      Address line 1
+                      <input data-location-field="service.addressLine1" type="text" autocomplete="address-line1" />
+                    </label>
+                    <label>
+                      Address line 2
+                      <input data-location-field="service.addressLine2" type="text" autocomplete="address-line2" />
+                    </label>
+                    <label>
+                      City
+                      <input data-location-field="service.city" type="text" autocomplete="address-level2" />
+                    </label>
+                    <label>
+                      Province
+                      <input data-location-field="service.province" type="text" autocomplete="address-level1" value="BC" />
+                    </label>
+                    <label>
+                      Postal code
+                      <input data-location-field="service.postalCode" type="text" autocomplete="postal-code" />
+                    </label>
+                  </div>
+                  <div class="jobs-field-grid two-columns">
+                    <label>
+                      Site/access notes
+                      <textarea data-location-field="service.siteAccessNotes" rows="2"></textarea>
+                    </label>
+                    <label>
+                      Parking notes
+                      <textarea data-location-field="service.parkingNotes" rows="2"></textarea>
+                    </label>
+                    <label>
+                      Stairs/elevator notes
+                      <textarea data-location-field="service.stairsElevatorNotes" rows="2"></textarea>
+                    </label>
+                    <label>
+                      Room/location notes
+                      <textarea data-location-field="service.roomLocationNotes" rows="2"></textarea>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="jobs-location-group is-hidden" data-location-panel="pickup">
+                  <div class="jobs-section-subhead">
+                    <strong>Pickup address</strong>
+                  </div>
+                  <label>
+                    Saved property
+                    <select id="pickupPropertySelect" data-property-select="pickup">
+                      <option value="">Select saved property</option>
+                    </select>
+                  </label>
+                  <div class="jobs-field-grid two-columns">
+                    <label>
+                      Label
+                      <input data-location-field="pickup.label" type="text" />
+                    </label>
+                    <label>
+                      Address line 1
+                      <input data-location-field="pickup.addressLine1" type="text" autocomplete="address-line1" />
+                    </label>
+                    <label>
+                      Address line 2
+                      <input data-location-field="pickup.addressLine2" type="text" autocomplete="address-line2" />
+                    </label>
+                    <label>
+                      City
+                      <input data-location-field="pickup.city" type="text" autocomplete="address-level2" />
+                    </label>
+                    <label>
+                      Province
+                      <input data-location-field="pickup.province" type="text" autocomplete="address-level1" value="BC" />
+                    </label>
+                    <label>
+                      Postal code
+                      <input data-location-field="pickup.postalCode" type="text" autocomplete="postal-code" />
+                    </label>
+                  </div>
+                  <div class="jobs-field-grid two-columns">
+                    <label>
+                      Site/access notes
+                      <textarea data-location-field="pickup.siteAccessNotes" rows="2"></textarea>
+                    </label>
+                    <label>
+                      Parking notes
+                      <textarea data-location-field="pickup.parkingNotes" rows="2"></textarea>
+                    </label>
+                    <label>
+                      Stairs/elevator notes
+                      <textarea data-location-field="pickup.stairsElevatorNotes" rows="2"></textarea>
+                    </label>
+                    <label>
+                      Room/location notes
+                      <textarea data-location-field="pickup.roomLocationNotes" rows="2"></textarea>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="jobs-location-group is-hidden" data-location-panel="delivery">
+                  <div class="jobs-section-subhead">
+                    <strong>Delivery address</strong>
+                  </div>
+                  <label>
+                    Saved property
+                    <select id="deliveryPropertySelect" data-property-select="delivery">
+                      <option value="">Select saved property</option>
+                    </select>
+                  </label>
+                  <div class="jobs-field-grid two-columns">
+                    <label>
+                      Label
+                      <input data-location-field="delivery.label" type="text" />
+                    </label>
+                    <label>
+                      Address line 1
+                      <input data-location-field="delivery.addressLine1" type="text" autocomplete="address-line1" />
+                    </label>
+                    <label>
+                      Address line 2
+                      <input data-location-field="delivery.addressLine2" type="text" autocomplete="address-line2" />
+                    </label>
+                    <label>
+                      City
+                      <input data-location-field="delivery.city" type="text" autocomplete="address-level2" />
+                    </label>
+                    <label>
+                      Province
+                      <input data-location-field="delivery.province" type="text" autocomplete="address-level1" value="BC" />
+                    </label>
+                    <label>
+                      Postal code
+                      <input data-location-field="delivery.postalCode" type="text" autocomplete="postal-code" />
+                    </label>
+                  </div>
+                  <div class="jobs-field-grid two-columns">
+                    <label>
+                      Site/access notes
+                      <textarea data-location-field="delivery.siteAccessNotes" rows="2"></textarea>
+                    </label>
+                    <label>
+                      Parking notes
+                      <textarea data-location-field="delivery.parkingNotes" rows="2"></textarea>
+                    </label>
+                    <label>
+                      Stairs/elevator notes
+                      <textarea data-location-field="delivery.stairsElevatorNotes" rows="2"></textarea>
+                    </label>
+                    <label>
+                      Room/location notes
+                      <textarea data-location-field="delivery.roomLocationNotes" rows="2"></textarea>
+                    </label>
+                  </div>
+                </div>
+
+                <details class="jobs-quick-property">
+                  <summary>Quick add property</summary>
+                  <div class="jobs-quick-property-grid">
+                    <label>
+                      Use for
+                      <select id="quickPropertyRole">
+                        <option value="service">Service</option>
+                        <option value="pickup">Pickup</option>
+                        <option value="delivery">Delivery</option>
+                      </select>
+                    </label>
+                    <label>
+                      Label
+                      <input id="quickPropertyLabel" type="text" />
+                    </label>
+                    <label>
+                      Address line 1
+                      <input id="quickPropertyAddressLine1" type="text" autocomplete="address-line1" />
+                    </label>
+                    <label>
+                      Address line 2
+                      <input id="quickPropertyAddressLine2" type="text" autocomplete="address-line2" />
+                    </label>
+                    <label>
+                      City
+                      <input id="quickPropertyCity" type="text" autocomplete="address-level2" />
+                    </label>
+                    <label>
+                      Province
+                      <input id="quickPropertyProvince" type="text" autocomplete="address-level1" value="BC" />
+                    </label>
+                    <label>
+                      Postal code
+                      <input id="quickPropertyPostalCode" type="text" autocomplete="postal-code" />
+                    </label>
+                    <label>
+                      Site/access notes
+                      <textarea id="quickPropertySiteAccessNotes" rows="2"></textarea>
+                    </label>
+                    <label>
+                      Parking notes
+                      <textarea id="quickPropertyParkingNotes" rows="2"></textarea>
+                    </label>
+                    <label>
+                      Stairs/elevator notes
+                      <textarea id="quickPropertyStairsElevatorNotes" rows="2"></textarea>
+                    </label>
+                    <label>
+                      Room/location notes
+                      <textarea id="quickPropertyRoomLocationNotes" rows="2"></textarea>
+                    </label>
+                    <button id="addQuickProperty" class="secondary-action compact-action" type="button">Add property</button>
+                  </div>
+                </details>
+              </section>
+
+              <section class="jobs-form-section" aria-label="Work details">
+                <h3>Work Details</h3>
+                <div class="jobs-field-grid three-columns">
+                  <label>
+                    Work type
                     <select id="jobTypeSelect" name="jobTypeId" required>
-                      <option value="">Loading job types...</option>
+                      <option value="">Loading work types...</option>
                     </select>
                   </label>
                   <label>
-                    Priority
-                    <select id="prioritySelect" name="priority" required></select>
+                    Abbreviation
+                    <input name="workTypeAbbreviation" type="text" />
                   </label>
-                </div>
-
-                <label id="customJobTypeField" class="is-hidden">
-                  Custom job type
-                  <input name="jobTypeOther" type="text" />
-                </label>
-
-                <label>
-                  Title / short summary
-                  <input name="title" type="text" required />
-                </label>
-
-                <div class="jobs-field-grid two-columns">
-                  <label>
-                    Source / reference
-                    <input name="sourceReference" type="text" />
-                  </label>
-                  <label>
-                    Product / table involved
-                    <input name="productOrTableInvolved" type="text" />
-                  </label>
-                </div>
-
-                <div class="jobs-field-grid three-columns">
                   <label>
                     Status
                     <select id="statusSelect" name="status" required></select>
                   </label>
+                </div>
+
+                <label>
+                  Title
+                  <input name="title" type="text" />
+                </label>
+
+                <div class="jobs-field-grid two-columns">
                   <label>
-                    Scheduled date
+                    Product / table details
+                    <input name="productOrTableInvolved" type="text" />
+                  </label>
+                  <label>
+                    Reference number
+                    <input name="referenceNumber" type="text" />
+                  </label>
+                  <label>
+                    Old system reference
+                    <input name="oldSystemReference" type="text" />
+                  </label>
+                  <label>
+                    Customer reference
+                    <input name="customerReferenceNumber" type="text" />
+                  </label>
+                  <label>
+                    Source ticket ID
+                    <input name="sourceWarrantyServiceTicketId" type="text" />
+                  </label>
+                </div>
+
+                <label>
+                  Work description
+                  <textarea name="serviceDetails" rows="4" required></textarea>
+                </label>
+              </section>
+
+              <section class="jobs-form-section" aria-label="Schedule and visits">
+                <h3>Schedule / Visits</h3>
+                <div class="jobs-field-grid three-columns">
+                  <label>
+                    Visit type
+                    <select id="visitTypeSelect" name="visitType"></select>
+                  </label>
+                  <label>
+                    Schedule state
+                    <select id="scheduleStateSelect" name="scheduleState"></select>
+                  </label>
+                  <label>
+                    Booked date
                     <input name="scheduledDate" type="date" />
                   </label>
                   <label>
+                    Arrival window
+                    <select id="arrivalWindowSelect" name="arrivalWindowLabel"></select>
+                  </label>
+                  <label class="jobs-checkbox-row compact-checkbox">
+                    <input id="anytimeVisit" name="anytime" type="checkbox" />
+                    Anytime
+                  </label>
+                  <label>
+                    Start time
+                    <input name="startTime" type="time" />
+                  </label>
+                  <label>
+                    End time
+                    <input name="endTime" type="time" />
+                  </label>
+                  <label>
                     Assigned to
-                    <input name="assignedToText" type="text" />
+                    <select id="assignedToSelect" name="assignedTo"></select>
                   </label>
                 </div>
-              </section>
-
-              <section class="jobs-form-section" aria-label="Service location">
-                <h3>Service Location</h3>
                 <label>
-                  Address line 1
-                  <input name="serviceAddressLine1" type="text" autocomplete="address-line1" />
+                  Visit instructions
+                  <textarea name="visitInstructions" rows="3"></textarea>
                 </label>
-
                 <label>
-                  Address line 2
-                  <input name="serviceAddressLine2" type="text" autocomplete="address-line2" />
-                </label>
-
-                <div class="jobs-field-grid three-columns">
-                  <label>
-                    City
-                    <input name="serviceCity" type="text" autocomplete="address-level2" />
-                  </label>
-                  <label>
-                    Province
-                    <input name="serviceProvince" type="text" autocomplete="address-level1" />
-                  </label>
-                  <label>
-                    Postal code
-                    <input name="servicePostalCode" type="text" autocomplete="postal-code" />
-                  </label>
-                </div>
-
-                <label>
-                  Service location name
-                  <input name="serviceLocationName" type="text" />
-                </label>
-
-                <label>
-                  Access notes
-                  <textarea name="accessNotes" rows="3"></textarea>
+                  Timing notes
+                  <textarea name="timingNotes" rows="2"></textarea>
                 </label>
               </section>
 
-              <section class="jobs-form-section" aria-label="Notes">
-                <h3>Notes</h3>
+              <section class="jobs-form-section" aria-label="Office notes">
+                <h3>Office Notes</h3>
                 <label>
-                  Service details / requested work
-                  <textarea name="serviceDetails" rows="4" required></textarea>
-                </label>
-
-                <label>
-                  Job notes
-                  <textarea name="jobNotes" rows="3"></textarea>
-                </label>
-
-                <label>
-                  Internal notes
+                  Internal office notes
                   <textarea name="internalNotes" rows="3"></textarea>
                 </label>
+              </section>
 
-                <label>
-                  Completion notes
-                  <textarea name="completionNotes" rows="3"></textarea>
-                </label>
-
-                <label>
-                  Cancellation reason
-                  <textarea name="cancellationReason" rows="3"></textarea>
-                </label>
+              <section class="jobs-form-section" aria-label="Status lifecycle">
+                <h3>Status / Billing Lifecycle</h3>
+                <div class="jobs-lifecycle-strip" aria-label="Work order lifecycle">
+                  <span>Quoted</span>
+                  <span>To be scheduled</span>
+                  <span>Booked</span>
+                  <span>Completed</span>
+                  <span>Invoiced</span>
+                  <span>Paid</span>
+                  <span>Cancelled</span>
+                </div>
               </section>
 
               <button id="saveWorkOrderButton" class="primary-action" type="submit">Create work order</button>
@@ -241,7 +483,7 @@ export function renderJobsWorkOrdersPage({ user }) {
             <div class="jobs-filter-grid">
               <label class="wide-filter">
                 Search
-                <input id="workOrderSearch" type="search" placeholder="Number, customer, job, location, notes" />
+                <input id="workOrderSearch" type="search" placeholder="Number, customer, city, reference, work" />
               </label>
               <label>
                 Status
@@ -250,24 +492,32 @@ export function renderJobsWorkOrdersPage({ user }) {
                 </select>
               </label>
               <label>
-                Priority
-                <select id="priorityFilter">
-                  <option value="">Any priority</option>
-                </select>
-              </label>
-              <label>
-                Job type
+                Work type
                 <select id="jobTypeFilter">
                   <option value="">All types</option>
                 </select>
               </label>
               <label>
-                Scheduled
+                Assigned
+                <select id="assignedToFilter">
+                  <option value="">Any team</option>
+                </select>
+              </label>
+              <label>
+                Scheduled date
                 <input id="scheduledDateFilter" type="date" />
+              </label>
+              <label>
+                City
+                <input id="cityFilter" type="text" />
+              </label>
+              <label class="jobs-checkbox-row compact-checkbox">
+                <input id="unscheduledFilter" type="checkbox" />
+                Unscheduled
               </label>
               <label class="jobs-checkbox-row compact-checkbox">
                 <input id="includeArchivedFilter" type="checkbox" />
-                Include archived
+                Archived
               </label>
             </div>
 

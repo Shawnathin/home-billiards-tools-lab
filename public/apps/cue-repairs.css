@@ -17,6 +17,7 @@
 .cue-list-heading,
 .cue-card-header,
 .cue-card-actions,
+.cue-contact-link-heading,
 .cue-checkbox-row {
   display: flex;
   align-items: center;
@@ -164,6 +165,9 @@
 .cue-form,
 .cue-repair-list,
 .cue-card-controls,
+.cue-contact-link,
+.cue-contact-results,
+.cue-selected-contact,
 .cue-notes-block {
   display: grid;
   gap: 12px;
@@ -226,6 +230,77 @@ textarea:focus {
   height: 18px;
   flex: 0 0 auto;
   box-shadow: none;
+}
+
+.cue-contact-link {
+  padding: 12px;
+  border: 1px solid rgba(61, 111, 131, 0.14);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.44);
+}
+
+.cue-contact-link-heading {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.cue-contact-link-heading strong {
+  color: var(--brand-dark);
+  font-size: 0.9rem;
+}
+
+.cue-contact-results {
+  gap: 8px;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.cue-contact-result {
+  display: grid;
+  width: 100%;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid rgba(61, 111, 131, 0.14);
+  border-radius: var(--radius);
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.68);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cue-contact-result:hover,
+.cue-contact-result:focus {
+  border-color: rgba(79, 157, 159, 0.5);
+  box-shadow: 0 0 0 3px rgba(115, 210, 214, 0.14);
+}
+
+.cue-contact-result strong,
+.cue-selected-contact strong {
+  color: var(--brand-dark);
+  overflow-wrap: anywhere;
+}
+
+.cue-contact-result span,
+.cue-selected-contact span,
+.cue-contact-result-status {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.cue-contact-result-status {
+  margin: 0;
+}
+
+.cue-selected-contact {
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid rgba(92, 184, 133, 0.24);
+  border-radius: var(--radius);
+  background: rgba(92, 184, 133, 0.12);
 }
 
 .compact-checkbox {

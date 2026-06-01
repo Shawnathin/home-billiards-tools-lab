@@ -21,6 +21,10 @@ const repairSelect = `
     j.customer_name as "customerName",
     j.customer_phone as "customerPhone",
     j.customer_email as "customerEmail",
+    j.customer_contact_id as "customerContactId",
+    cc.contact_number as "customerContactNumber",
+    cc.display_name as "customerContactName",
+    cc.company_name as "customerContactCompanyName",
     j.cue_brand as "cueBrand",
     j.cue_model as "cueModel",
     j.cue_description as "cueDescription",
@@ -41,6 +45,7 @@ const repairSelect = `
     j.updated_at as "updatedAt"
   from cue_repair_jobs j
   left join cue_repair_types t on t.id = j.repair_type_id
+  left join customer_contacts cc on cc.id = j.customer_contact_id
 `;
 
 export const cueRepairsApiRouter = express.Router();
@@ -216,6 +221,8 @@ function buildRepairFilters(query) {
       or j.customer_name ilike $${index}
       or coalesce(j.customer_phone, '') ilike $${index}
       or coalesce(j.customer_email, '') ilike $${index}
+      or coalesce(cc.contact_number, '') ilike $${index}
+      or coalesce(cc.display_name, '') ilike $${index}
       or coalesce(j.cue_brand, '') ilike $${index}
       or coalesce(j.cue_model, '') ilike $${index}
       or coalesce(j.cue_description, '') ilike $${index}
@@ -241,6 +248,7 @@ async function insertRepair(data) {
             customer_name,
             customer_phone,
             customer_email,
+            customer_contact_id,
             cue_brand,
             cue_model,
             cue_description,
@@ -255,7 +263,7 @@ async function insertRepair(data) {
           )
           values (
             $1, $2, $3, $4, $5, $6, $7,
-            $8, $9, $10, $11, $12, $13, $14
+            $8, $9, $10, $11, $12, $13, $14, $15
           )
           returning *
         `,
@@ -263,6 +271,7 @@ async function insertRepair(data) {
           data.customerName,
           data.customerPhone,
           data.customerEmail,
+          data.customerContactId,
           data.cueBrand,
           data.cueModel,
           data.cueDescription,
@@ -296,6 +305,7 @@ async function updateRepair(id, existing, data, rawBody) {
     customer_name: data.customerName,
     customer_phone: data.customerPhone,
     customer_email: data.customerEmail,
+    customer_contact_id: data.customerContactId,
     cue_brand: data.cueBrand,
     cue_model: data.cueModel,
     cue_description: data.cueDescription,
@@ -382,6 +392,7 @@ async function normalizeRepairInput(rawInput, existing) {
     customerName: readClean(input, existing, 'customerName', { maxLength: 180 }),
     customerPhone: readClean(input, existing, 'customerPhone', { maxLength: 80 }),
     customerEmail: readClean(input, existing, 'customerEmail', { maxLength: 240, lowercase: true }),
+    customerContactId: readClean(input, existing, 'customerContactId', { maxLength: 80 }),
     cueBrand: readClean(input, existing, 'cueBrand', { maxLength: 140 }),
     cueModel: readClean(input, existing, 'cueModel', { maxLength: 160 }),
     cueDescription: readClean(input, existing, 'cueDescription', { maxLength: MAX_TEXT_LENGTH }),
@@ -397,6 +408,10 @@ async function normalizeRepairInput(rawInput, existing) {
 
   if (data.repairTypeId === 'custom' || data.repairTypeId === 'other') {
     data.repairTypeId = null;
+  }
+
+  if (data.customerContactId && !UUID_PATTERN.test(data.customerContactId)) {
+    return { error: 'Choose a valid customer/contact link.' };
   }
 
   const repairTypeReferenceError = await resolveRepairTypeReference(data);
@@ -415,6 +430,12 @@ async function normalizeRepairInput(rawInput, existing) {
 
   if (typeError) {
     return { error: typeError };
+  }
+
+  const contactError = await validateCustomerContact(data.customerContactId);
+
+  if (contactError) {
+    return { error: contactError };
   }
 
   return { data };
@@ -498,6 +519,24 @@ async function validateRepairType(data, input, existing) {
   }
 
   return '';
+}
+
+async function validateCustomerContact(customerContactId) {
+  if (!customerContactId) {
+    return '';
+  }
+
+  const result = await pool.query(
+    `
+      select id
+      from customer_contacts
+      where id = $1
+      limit 1
+    `,
+    [customerContactId]
+  );
+
+  return result.rows[0] ? '' : 'Selected customer/contact is unavailable.';
 }
 
 async function resolveRepairTypeReference(data) {

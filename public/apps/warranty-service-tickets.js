@@ -2,7 +2,8 @@ const endpoints = {
   bootstrap: '/api/apps/warranty-service-tickets/bootstrap',
   tickets: '/api/apps/warranty-service-tickets/tickets',
   ticket: (id) => `/api/apps/warranty-service-tickets/tickets/${id}`,
-  summary: '/api/apps/warranty-service-tickets/summary'
+  summary: '/api/apps/warranty-service-tickets/summary',
+  contacts: '/api/apps/customers-contacts/contacts'
 };
 
 const fallbackStatusLabels = {
@@ -26,7 +27,10 @@ const state = {
   statuses: [],
   priorities: [],
   tickets: [],
-  searchTimer: null
+  contactResults: [],
+  selectedContact: null,
+  searchTimer: null,
+  contactSearchTimer: null
 };
 
 const elements = {
@@ -36,6 +40,10 @@ const elements = {
   saveTicketButton: document.getElementById('saveTicketButton'),
   issueTypeSelect: document.getElementById('issueTypeSelect'),
   customIssueTypeField: document.getElementById('customIssueTypeField'),
+  contactSearch: document.getElementById('ticketContactSearch'),
+  contactResults: document.getElementById('ticketContactResults'),
+  selectedContact: document.getElementById('ticketContactSelected'),
+  clearContactButton: document.getElementById('clearTicketContactLink'),
   statusSelect: document.getElementById('statusSelect'),
   prioritySelect: document.getElementById('prioritySelect'),
   list: document.getElementById('ticketList'),
@@ -69,6 +77,12 @@ function bindEvents() {
   elements.form.addEventListener('submit', handleCreateTicket);
   elements.resetFormButton.addEventListener('click', resetTicketForm);
   elements.issueTypeSelect.addEventListener('change', toggleCustomIssueTypeField);
+  elements.contactSearch.addEventListener('input', () => {
+    window.clearTimeout(state.contactSearchTimer);
+    state.contactSearchTimer = window.setTimeout(searchContactsForLink, 240);
+  });
+  elements.contactResults.addEventListener('click', handleContactResultClick);
+  elements.clearContactButton.addEventListener('click', clearSelectedContact);
   elements.refreshButton.addEventListener('click', () => {
     loadSummary();
     loadTickets();
@@ -197,6 +211,7 @@ function renderReferenceOptions() {
 
 function resetTicketForm() {
   elements.form.reset();
+  resetContactLinkSearch();
   elements.statusSelect.value = 'open';
   elements.prioritySelect.value = 'normal';
   toggleCustomIssueTypeField();
@@ -310,6 +325,7 @@ function createTicketCard(ticket) {
   meta.className = 'warranty-card-meta';
   meta.append(
     createMetaItem('Contact', [ticket.customerPhone, ticket.customerEmail].filter(Boolean).join(' / ')),
+    createMetaItem('Linked contact', formatLinkedContact(ticket)),
     createMetaItem('Issue type', formatIssueType(ticket)),
     createMetaItem('Product', ticket.productInvolved),
     createMetaItem('Reference', ticket.orderOrJobReference),
@@ -470,6 +486,119 @@ function buildPatchPayload(ticketId, action) {
   }
 
   return payload;
+}
+
+async function searchContactsForLink() {
+  const search = clean(elements.contactSearch.value);
+  state.contactResults = [];
+  elements.contactResults.replaceChildren();
+
+  if (search.length < 2) {
+    return;
+  }
+
+  const params = new URLSearchParams({ search });
+
+  try {
+    const payload = await fetchJson(`${endpoints.contacts}?${params}`);
+    renderContactResults(payload.contacts || []);
+  } catch (error) {
+    elements.contactResults.replaceChildren(createContactResultStatus(error.message || 'Contacts could not load.'));
+  }
+}
+
+function renderContactResults(contacts) {
+  elements.contactResults.replaceChildren();
+  state.contactResults = contacts.slice(0, 8);
+
+  if (state.contactResults.length === 0) {
+    elements.contactResults.append(createContactResultStatus('No matching contacts.'));
+    return;
+  }
+
+  for (const contact of state.contactResults) {
+    elements.contactResults.append(createContactResultButton(contact));
+  }
+}
+
+function createContactResultButton(contact) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'warranty-contact-result';
+  button.dataset.contactId = contact.id;
+
+  const title = document.createElement('strong');
+  title.textContent = formatContactLinkTitle(contact);
+
+  const meta = document.createElement('span');
+  meta.textContent = [contact.companyName, contact.phone, contact.email].filter(Boolean).join(' / ') || 'No extra contact info';
+
+  button.append(title, meta);
+  return button;
+}
+
+function createContactResultStatus(message) {
+  const status = document.createElement('p');
+  status.className = 'warranty-contact-result-status';
+  status.textContent = message;
+  return status;
+}
+
+function handleContactResultClick(event) {
+  const button = event.target.closest('[data-contact-id]');
+
+  if (!button) {
+    return;
+  }
+
+  const contact = state.contactResults.find((item) => item.id === button.dataset.contactId);
+
+  if (contact) {
+    selectContactForTicket(contact);
+  }
+}
+
+function selectContactForTicket(contact) {
+  state.selectedContact = contact;
+  elements.form.elements.customerContactId.value = contact.id || '';
+  elements.form.elements.customerName.value = contact.displayName || '';
+  elements.form.elements.customerPhone.value = contact.phone || '';
+  elements.form.elements.customerEmail.value = contact.email || '';
+  renderSelectedContact(contact);
+  elements.clearContactButton.disabled = false;
+  elements.contactResults.replaceChildren();
+}
+
+function renderSelectedContact(contact) {
+  elements.selectedContact.replaceChildren();
+
+  if (!contact) {
+    elements.selectedContact.classList.add('is-hidden');
+    return;
+  }
+
+  const title = document.createElement('strong');
+  title.textContent = formatContactLinkTitle(contact);
+
+  const meta = document.createElement('span');
+  meta.textContent = [contact.companyName, contact.phone, contact.email].filter(Boolean).join(' / ') || 'Linked contact';
+
+  elements.selectedContact.append(title, meta);
+  elements.selectedContact.classList.remove('is-hidden');
+}
+
+function clearSelectedContact() {
+  state.selectedContact = null;
+  elements.form.elements.customerContactId.value = '';
+  elements.clearContactButton.disabled = true;
+  renderSelectedContact(null);
+}
+
+function resetContactLinkSearch() {
+  clearSelectedContact();
+  elements.contactSearch.value = '';
+  state.contactResults = [];
+  elements.contactResults.replaceChildren();
 }
 
 function createNotesBlock(ticket) {
@@ -637,6 +766,14 @@ function formatIssueType(ticket) {
   }
 
   return ticket.issueTypeName || ticket.issueTypeOther || 'Not set';
+}
+
+function formatLinkedContact(ticket) {
+  return [ticket.customerContactNumber, ticket.customerContactName].filter(Boolean).join(' / ') || 'Not linked';
+}
+
+function formatContactLinkTitle(contact) {
+  return [contact.contactNumber, contact.displayName].filter(Boolean).join(' / ') || 'Contact';
 }
 
 function formatStatus(status) {

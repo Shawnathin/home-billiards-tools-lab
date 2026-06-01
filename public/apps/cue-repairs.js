@@ -1,7 +1,8 @@
 const endpoints = {
   types: '/api/apps/cue-repairs/types',
   repairs: '/api/apps/cue-repairs/repairs',
-  summary: '/api/apps/cue-repairs/summary'
+  summary: '/api/apps/cue-repairs/summary',
+  contacts: '/api/apps/customers-contacts/contacts'
 };
 
 const statusLabels = {
@@ -19,7 +20,10 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-
 const state = {
   types: [],
   repairs: [],
-  searchTimer: null
+  contactResults: [],
+  selectedContact: null,
+  searchTimer: null,
+  contactSearchTimer: null
 };
 
 const elements = {
@@ -27,6 +31,10 @@ const elements = {
   formMessage: document.getElementById('cueFormMessage'),
   typeSelect: document.getElementById('repairTypeSelect'),
   otherRepairTypeField: document.getElementById('otherRepairTypeField'),
+  contactSearch: document.getElementById('repairContactSearch'),
+  contactResults: document.getElementById('repairContactResults'),
+  selectedContact: document.getElementById('repairContactSelected'),
+  clearContactButton: document.getElementById('clearRepairContactLink'),
   list: document.getElementById('repairList'),
   listStatus: document.getElementById('cueListStatus'),
   refreshButton: document.getElementById('refreshRepairs'),
@@ -56,6 +64,12 @@ function bindEvents() {
     toggleOtherRepairTypeField();
     fillEstimateFromSelectedType();
   });
+  elements.contactSearch.addEventListener('input', () => {
+    window.clearTimeout(state.contactSearchTimer);
+    state.contactSearchTimer = window.setTimeout(searchContactsForLink, 240);
+  });
+  elements.contactResults.addEventListener('click', handleContactResultClick);
+  elements.clearContactButton.addEventListener('click', clearSelectedContact);
   elements.refreshButton.addEventListener('click', () => {
     loadSummary();
     loadRepairs();
@@ -169,6 +183,7 @@ async function handleCreateRepair(event) {
       });
 
       elements.form.reset();
+      resetContactLinkSearch();
       renderTypeOptions();
       setFormMessage('Repair created.');
       await Promise.all([loadSummary(), loadRepairs()]);
@@ -269,6 +284,7 @@ function createRepairCard(repair) {
   meta.className = 'cue-card-meta';
   meta.append(
     createMetaItem('Contact', [repair.customerPhone, repair.customerEmail].filter(Boolean).join(' / ')),
+    createMetaItem('Linked contact', formatLinkedContact(repair)),
     createMetaItem('Cue description', repair.cueDescription),
     createMetaItem('Repair type', formatRepairType(repair)),
     createMetaItem('Estimate', repair.formattedEstimate)
@@ -387,6 +403,119 @@ function buildPatchPayload(repairId, action) {
   }
 
   return null;
+}
+
+async function searchContactsForLink() {
+  const search = clean(elements.contactSearch.value);
+  state.contactResults = [];
+  elements.contactResults.replaceChildren();
+
+  if (search.length < 2) {
+    return;
+  }
+
+  const params = new URLSearchParams({ search });
+
+  try {
+    const payload = await fetchJson(`${endpoints.contacts}?${params}`);
+    renderContactResults(payload.contacts || []);
+  } catch (error) {
+    elements.contactResults.replaceChildren(createContactResultStatus(error.message || 'Contacts could not load.'));
+  }
+}
+
+function renderContactResults(contacts) {
+  elements.contactResults.replaceChildren();
+  state.contactResults = contacts.slice(0, 8);
+
+  if (state.contactResults.length === 0) {
+    elements.contactResults.append(createContactResultStatus('No matching contacts.'));
+    return;
+  }
+
+  for (const contact of state.contactResults) {
+    elements.contactResults.append(createContactResultButton(contact));
+  }
+}
+
+function createContactResultButton(contact) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'cue-contact-result';
+  button.dataset.contactId = contact.id;
+
+  const title = document.createElement('strong');
+  title.textContent = formatContactLinkTitle(contact);
+
+  const meta = document.createElement('span');
+  meta.textContent = [contact.companyName, contact.phone, contact.email].filter(Boolean).join(' / ') || 'No extra contact info';
+
+  button.append(title, meta);
+  return button;
+}
+
+function createContactResultStatus(message) {
+  const status = document.createElement('p');
+  status.className = 'cue-contact-result-status';
+  status.textContent = message;
+  return status;
+}
+
+function handleContactResultClick(event) {
+  const button = event.target.closest('[data-contact-id]');
+
+  if (!button) {
+    return;
+  }
+
+  const contact = state.contactResults.find((item) => item.id === button.dataset.contactId);
+
+  if (contact) {
+    selectContactForRepair(contact);
+  }
+}
+
+function selectContactForRepair(contact) {
+  state.selectedContact = contact;
+  elements.form.elements.customerContactId.value = contact.id || '';
+  elements.form.elements.customerName.value = contact.displayName || '';
+  elements.form.elements.customerPhone.value = contact.phone || '';
+  elements.form.elements.customerEmail.value = contact.email || '';
+  renderSelectedContact(contact);
+  elements.clearContactButton.disabled = false;
+  elements.contactResults.replaceChildren();
+}
+
+function renderSelectedContact(contact) {
+  elements.selectedContact.replaceChildren();
+
+  if (!contact) {
+    elements.selectedContact.classList.add('is-hidden');
+    return;
+  }
+
+  const title = document.createElement('strong');
+  title.textContent = formatContactLinkTitle(contact);
+
+  const meta = document.createElement('span');
+  meta.textContent = [contact.companyName, contact.phone, contact.email].filter(Boolean).join(' / ') || 'Linked contact';
+
+  elements.selectedContact.append(title, meta);
+  elements.selectedContact.classList.remove('is-hidden');
+}
+
+function clearSelectedContact() {
+  state.selectedContact = null;
+  elements.form.elements.customerContactId.value = '';
+  elements.clearContactButton.disabled = true;
+  renderSelectedContact(null);
+}
+
+function resetContactLinkSearch() {
+  clearSelectedContact();
+  elements.contactSearch.value = '';
+  state.contactResults = [];
+  elements.contactResults.replaceChildren();
 }
 
 function createNotesBlock(repair) {
@@ -589,6 +718,14 @@ function formatRepairType(repair) {
   }
 
   return repair.repairTypeName || repair.repairTypeOther || 'Not set';
+}
+
+function formatLinkedContact(repair) {
+  return [repair.customerContactNumber, repair.customerContactName].filter(Boolean).join(' / ') || 'Not linked';
+}
+
+function formatContactLinkTitle(contact) {
+  return [contact.contactNumber, contact.displayName].filter(Boolean).join(' / ') || 'Contact';
 }
 
 function formatStatus(status) {

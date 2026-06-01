@@ -90,6 +90,20 @@ export function renderCueRepairsPage({ user }) {
                 <input name="customerEmail" type="email" autocomplete="email" />
               </label>
 
+              <section class="cue-contact-link" aria-label="Link customer or contact">
+                <div class="cue-contact-link-heading">
+                  <strong>Link customer/contact</strong>
+                  <button id="clearRepairContactLink" class="secondary-action compact-action" type="button" disabled>Clear</button>
+                </div>
+                <input name="customerContactId" type="hidden" />
+                <label>
+                  Search contacts
+                  <input id="repairContactSearch" type="search" placeholder="Name, phone, email, company, contact number" autocomplete="off" />
+                </label>
+                <div id="repairContactSelected" class="cue-selected-contact is-hidden" aria-live="polite"></div>
+                <div id="repairContactResults" class="cue-contact-results" aria-live="polite"></div>
+              </section>
+
               <label>
                 Cue description
                 <textarea name="cueDescription" rows="3" required></textarea>

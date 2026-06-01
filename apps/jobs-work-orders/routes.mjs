@@ -270,6 +270,10 @@ jobsWorkOrdersApiRouter.patch('/work-orders/:id', async (req, res, next) => {
     const workOrder = await updateWorkOrder(id, existing, normalized.data);
     return res.json({ workOrder: formatWorkOrder(workOrder) });
   } catch (error) {
+    if (error.statusCode === 404) {
+      return res.status(404).json({ error: error.message || 'Visit not found.' });
+    }
+
     if (isValidationConstraintError(error) || error.code === '23505') {
       return res.status(400).json({ error: 'Work order update is missing required workflow information.' });
     }
@@ -367,6 +371,12 @@ jobsWorkOrdersApiRouter.patch('/work-orders/:id/visits/:visitId', async (req, re
     try {
       await client.query('begin');
       const visit = await updateWorkOrderVisit(client, workOrderId, normalized.data);
+
+      if (!visit) {
+        await client.query('rollback');
+        return res.status(404).json({ error: 'Visit not found.' });
+      }
+
       await client.query('commit');
       const refreshed = await getWorkOrderById(workOrderId);
       return res.json({ visit, workOrder: formatWorkOrder(refreshed) });
@@ -794,6 +804,7 @@ async function updateWorkOrder(id, existing, data) {
 
     if (data.locationsProvided) {
       await replaceWorkOrderLocations(client, id, data.locations);
+      await reconnectVisitLocationReferences(client, id);
     }
 
     if (data.visitsProvided) {
@@ -905,10 +916,81 @@ async function replaceWorkOrderLocations(client, workOrderId, locations) {
   }
 }
 
+async function reconnectVisitLocationReferences(client, workOrderId) {
+  await client.query(
+    `
+      update job_work_order_visits v
+      set
+        location_role = coalesce(
+          v.location_role,
+          case
+            when v.visit_type = 'pickup' then 'pickup'
+            when v.visit_type = 'delivery' then 'delivery'
+            when v.visit_type = 'pickup_delivery' then 'pickup_delivery'
+            else 'service'
+          end
+        ),
+        primary_location_id = (
+          select l.id
+          from job_work_order_locations l
+          where l.work_order_id = v.work_order_id
+            and l.role = case
+              when coalesce(
+                v.location_role,
+                case
+                  when v.visit_type = 'pickup' then 'pickup'
+                  when v.visit_type = 'delivery' then 'delivery'
+                  when v.visit_type = 'pickup_delivery' then 'pickup_delivery'
+                  else 'service'
+                end
+              ) = 'delivery' then 'delivery'
+              when coalesce(
+                v.location_role,
+                case
+                  when v.visit_type = 'pickup' then 'pickup'
+                  when v.visit_type = 'delivery' then 'delivery'
+                  when v.visit_type = 'pickup_delivery' then 'pickup_delivery'
+                  else 'service'
+                end
+              ) in ('pickup', 'pickup_delivery') then 'pickup'
+              else 'service'
+            end
+          limit 1
+        ),
+        secondary_location_id = case
+          when coalesce(
+            v.location_role,
+            case
+              when v.visit_type = 'pickup' then 'pickup'
+              when v.visit_type = 'delivery' then 'delivery'
+              when v.visit_type = 'pickup_delivery' then 'pickup_delivery'
+              else 'service'
+            end
+          ) = 'pickup_delivery' then (
+            select l.id
+            from job_work_order_locations l
+            where l.work_order_id = v.work_order_id
+              and l.role = 'delivery'
+            limit 1
+          )
+          else null
+        end
+      where v.work_order_id = $1
+    `,
+    [workOrderId]
+  );
+}
+
 async function upsertWorkOrderVisits(client, workOrderId, visits) {
   for (const visit of visits || []) {
     if (visit.id) {
-      await updateWorkOrderVisit(client, workOrderId, visit);
+      const updatedVisit = await updateWorkOrderVisit(client, workOrderId, visit);
+
+      if (!updatedVisit) {
+        const error = new Error('Visit not found.');
+        error.statusCode = 404;
+        throw error;
+      }
     } else {
       await insertWorkOrderVisit(client, workOrderId, visit);
     }
@@ -1049,6 +1131,10 @@ async function insertWorkOrderVisit(client, workOrderId, visit) {
 }
 
 async function updateWorkOrderVisit(client, workOrderId, visit) {
+  if (!visit.id) {
+    return null;
+  }
+
   const locationRefs = await resolveVisitLocationReferences(client, workOrderId, visit);
   const fields = {
     visit_number: visit.visitNumber,
@@ -1114,7 +1200,7 @@ async function updateWorkOrderVisit(client, workOrderId, visit) {
     values
   );
 
-  return formatVisit(result.rows[0]);
+  return result.rows[0] ? formatVisit(result.rows[0]) : null;
 }
 
 async function getNextVisitNumber(client, workOrderId) {
@@ -1948,7 +2034,7 @@ function normalizeVisitInput(rawVisit, existingVisit, fallbackVisitNumber, statu
 
   return {
     data: {
-      id: readUuid(readAny(rawVisit, 'id')),
+      id: readUuid(readAny(rawVisit, 'id')) || existingVisit?.id || null,
       visitNumber,
       visitTitle: cleanText(readAny(rawVisit, 'visitTitle'), { maxLength: MAX_SHORT_TEXT_LENGTH }) || existingVisit?.visitTitle || null,
       visitType,

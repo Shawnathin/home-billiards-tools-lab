@@ -34,6 +34,7 @@
     selectedThreadId: null,
     selectedThread: null,
     selectedPosts: [],
+    view: 'empty',
     searchTimer: null
   };
 
@@ -46,6 +47,10 @@
     priorityFilter: document.getElementById('internalMessagesPriorityFilter'),
     recordTypeFilter: document.getElementById('internalMessagesRecordTypeFilter'),
     unreadFilter: document.getElementById('internalMessagesUnreadFilter'),
+    newThreadButton: document.getElementById('internalMessagesNewThreadButton'),
+    emptyNewThreadButton: document.getElementById('internalMessagesEmptyNewThreadButton'),
+    cancelNewThreadButton: document.getElementById('internalMessagesCancelNewThread'),
+    newPane: document.getElementById('internalMessagesNewPane'),
     newForm: document.getElementById('internalMessagesNewForm'),
     newStatus: document.getElementById('internalMessagesNewStatus'),
     createButton: document.getElementById('internalMessagesCreateButton'),
@@ -93,6 +98,9 @@
 
   function bindEvents() {
     elements.refreshButton.addEventListener('click', loadThreads);
+    elements.newThreadButton.addEventListener('click', showNewThreadComposer);
+    elements.emptyNewThreadButton.addEventListener('click', showNewThreadComposer);
+    elements.cancelNewThreadButton.addEventListener('click', cancelNewThreadComposer);
     elements.newForm.addEventListener('submit', handleCreateThread);
     elements.list.addEventListener('click', handleThreadListClick);
     elements.replyForm.addEventListener('submit', handleReplySubmit);
@@ -213,7 +221,7 @@
     card.type = 'button';
     card.className = `internal-messages-thread-card status-${thread.status} priority-${thread.priority}`;
     card.classList.toggle('is-unread', Boolean(thread.unread));
-    card.classList.toggle('is-selected', thread.id === state.selectedThreadId);
+    card.classList.toggle('is-selected', thread.id === state.selectedThreadId && state.view === 'thread');
     card.dataset.threadId = thread.id;
 
     const header = document.createElement('div');
@@ -222,13 +230,31 @@
     const titleBlock = document.createElement('div');
     titleBlock.className = 'internal-messages-thread-title';
 
-    const eyebrow = document.createElement('span');
-    eyebrow.textContent = formatRecordLabel(thread);
+    const subjectRow = document.createElement('div');
+    subjectRow.className = 'internal-messages-thread-subject-row';
+
+    const unreadDot = document.createElement('span');
+    unreadDot.className = 'internal-messages-unread-dot';
+    unreadDot.setAttribute('aria-label', thread.unread ? 'Unread thread' : 'Read thread');
 
     const subject = document.createElement('strong');
     subject.textContent = thread.subject || 'Thread';
 
-    titleBlock.append(eyebrow, subject);
+    subjectRow.append(unreadDot, subject);
+    titleBlock.append(subjectRow);
+
+    const recordLabel = formatOptionalRecordLabel(thread);
+
+    if (recordLabel) {
+      const context = document.createElement('span');
+      context.className = 'internal-messages-thread-context';
+      context.textContent = recordLabel;
+      titleBlock.append(context);
+    }
+
+    const timestamp = document.createElement('time');
+    timestamp.dateTime = thread.lastMessageAt || thread.createdAt || '';
+    timestamp.textContent = formatShortTimestamp(thread.lastMessageAt || thread.createdAt);
 
     const pillArea = document.createElement('div');
     pillArea.className = 'internal-messages-pill-area';
@@ -237,7 +263,7 @@
       createPill(thread.statusLabel || thread.status, `status-${thread.status}`)
     );
 
-    header.append(titleBlock, pillArea);
+    header.append(titleBlock, timestamp);
 
     const snippet = document.createElement('p');
     snippet.className = 'internal-messages-thread-snippet';
@@ -246,9 +272,8 @@
     const meta = document.createElement('div');
     meta.className = 'internal-messages-thread-meta';
     meta.append(
-      createMetaItem('Posts', String(thread.postCount || 0)),
-      createMetaItem('Last', formatTimestamp(thread.lastMessageAt)),
-      createMetaItem('By', thread.lastPostByDisplayName || thread.createdByDisplayName || 'Staff')
+      createMetaItem(thread.lastPostByDisplayName || thread.createdByDisplayName || 'Staff'),
+      createMetaItem(`${thread.postCount || 0} post${thread.postCount === 1 ? '' : 's'}`)
     );
 
     if (thread.unread) {
@@ -258,7 +283,7 @@
       meta.append(unread);
     }
 
-    card.append(header, snippet, meta);
+    card.append(header, snippet, pillArea, meta);
     return card;
   }
 
@@ -278,6 +303,18 @@
     }
 
     state.selectedThreadId = id;
+    state.selectedThread = null;
+    state.selectedPosts = [];
+    state.view = 'thread';
+    elements.newPane.hidden = true;
+    elements.detailEmpty.hidden = true;
+    elements.detailContent.hidden = false;
+    elements.detailEyebrow.textContent = 'Thread';
+    elements.detailSubject.textContent = 'Loading thread...';
+    elements.detailMeta.textContent = '';
+    elements.posts.replaceChildren(createEmptyState('Loading messages...'));
+    setFeedbackContext(null);
+    setDetailControlsDisabled(true);
     renderThreads();
     setDetailStatus('Loading thread...');
 
@@ -292,7 +329,36 @@
       await loadThreads();
     } catch (error) {
       setDetailStatus(error.message || 'Thread could not load.', true);
+      setDetailControlsDisabled(false);
     }
+  }
+
+  function showNewThreadComposer() {
+    state.view = 'new';
+    elements.detailEmpty.hidden = true;
+    elements.detailContent.hidden = true;
+    elements.newPane.hidden = false;
+    setFeedbackContext(null);
+    setNewStatus('');
+    renderThreads();
+    window.requestAnimationFrame(() => elements.subject.focus());
+  }
+
+  function cancelNewThreadComposer() {
+    elements.newForm.reset();
+    setNewStatus('');
+
+    if (state.selectedThread) {
+      renderDetail();
+      return;
+    }
+
+    state.view = 'empty';
+    elements.detailEmpty.hidden = false;
+    elements.detailContent.hidden = true;
+    elements.newPane.hidden = true;
+    setFeedbackContext(null);
+    renderThreads();
   }
 
   async function markSelectedThreadRead(id) {
@@ -307,20 +373,28 @@
     const thread = state.selectedThread;
 
     if (!thread) {
+      state.view = 'empty';
       elements.detailEmpty.hidden = false;
       elements.detailContent.hidden = true;
+      elements.newPane.hidden = true;
+      setFeedbackContext(null);
+      setDetailControlsDisabled(false);
+      renderThreads();
       return;
     }
 
+    state.view = 'thread';
     elements.detailEmpty.hidden = true;
     elements.detailContent.hidden = false;
+    elements.newPane.hidden = true;
     elements.detailSubject.textContent = thread.subject || 'Thread';
-    elements.detailEyebrow.textContent = formatRecordLabel(thread);
+    elements.detailEyebrow.textContent = formatOptionalRecordLabel(thread) || 'General thread';
     elements.detailMeta.textContent = formatThreadMeta(thread);
     setFeedbackContext(thread);
 
     replaceOptions(elements.detailStatus, state.options.statuses, thread.status);
     replaceOptions(elements.detailPriority, state.options.priorities, thread.priority);
+    setDetailControlsDisabled(false);
 
     if (state.selectedPosts.length === 0) {
       elements.posts.replaceChildren(createEmptyState('No posts yet.'));
@@ -329,6 +403,7 @@
     }
 
     setDetailStatus('');
+    renderThreads();
   }
 
   function renderPost(post) {
@@ -498,9 +573,9 @@
     return pill;
   }
 
-  function createMetaItem(label, value) {
+  function createMetaItem(value) {
     const item = document.createElement('span');
-    item.textContent = `${label}: ${value || 'Not set'}`;
+    item.textContent = value || 'Not set';
     return item;
   }
 
@@ -573,7 +648,7 @@
     return `${count} thread${count === 1 ? '' : 's'} shown.`;
   }
 
-  function formatRecordLabel(thread) {
+  function formatOptionalRecordLabel(thread) {
     const typeLabel = thread.relatedRecordTypeLabel || labelFor(state.options.relatedRecordTypes, thread.relatedRecordType);
     const recordLabel = thread.relatedRecordLabel || thread.relatedRecordId;
 
@@ -581,7 +656,11 @@
       return `${typeLabel} / ${recordLabel}`;
     }
 
-    return typeLabel || recordLabel || 'General';
+    if (thread.relatedRecordType || recordLabel) {
+      return typeLabel || recordLabel;
+    }
+
+    return '';
   }
 
   function formatThreadMeta(thread) {
@@ -612,12 +691,47 @@
     });
   }
 
+  function formatShortTimestamp(value) {
+    if (!value) {
+      return '';
+    }
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return '';
+    }
+
+    const today = new Date();
+    const isToday = date.toDateString() === today.toDateString();
+    const oneWeekAgo = new Date(today);
+    oneWeekAgo.setDate(today.getDate() - 6);
+
+    if (isToday) {
+      return date.toLocaleTimeString([], {
+        hour: 'numeric',
+        minute: '2-digit'
+      });
+    }
+
+    if (date > oneWeekAgo) {
+      return date.toLocaleDateString([], {
+        weekday: 'short'
+      });
+    }
+
+    return date.toLocaleDateString([], {
+      month: 'short',
+      day: 'numeric'
+    });
+  }
+
   function setFeedbackContext(thread) {
     if (!elements.detailContent) {
       return;
     }
 
-    if (thread.relatedRecordType) {
+    if (thread?.relatedRecordType) {
       elements.detailContent.dataset.feedbackRelatedRecordType = thread.relatedRecordType;
       elements.detailContent.dataset.feedbackRelatedRecordId = thread.relatedRecordId || '';
       elements.detailContent.dataset.feedbackRelatedRecordLabel = thread.relatedRecordLabel || thread.subject || '';

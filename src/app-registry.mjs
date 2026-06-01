@@ -27,6 +27,15 @@ export const appRegistry = [
     enabled: true
   },
   {
+    id: 'warranty-service-tickets',
+    name: 'Warranty / Service Tickets',
+    description: 'Track warranty claims, service issues, product problems, follow-ups, and resolutions.',
+    status: 'v1',
+    path: '/apps/warranty-service-tickets',
+    defaultAccess: 'all_logged_in_users',
+    enabled: true
+  },
+  {
     id: 'cue-tracker',
     name: 'Cue Tracker',
     description: 'Not connected here. The live staff tracker stays untouched.',

@@ -18,6 +18,15 @@ export const appRegistry = [
     enabled: true
   },
   {
+    id: 'products-inventory',
+    name: 'Products / Inventory',
+    description: 'Track products, pricing, stock counts, locations, and inventory adjustments.',
+    status: 'v1',
+    path: '/apps/products-inventory',
+    defaultAccess: 'all_logged_in_users',
+    enabled: true
+  },
+  {
     id: 'cue-tracker',
     name: 'Cue Tracker',
     description: 'Not connected here. The live staff tracker stays untouched.',
@@ -38,10 +47,10 @@ export const appRegistry = [
   {
     id: 'product-data-admin',
     name: 'Product Data Admin',
-    description: 'Future home for product records, specs, and catalog data.',
-    status: 'coming_later',
-    path: null,
-    defaultAccess: 'future_review',
+    description: 'Folded into Products / Inventory v1.',
+    status: 'replaced_by_v1',
+    path: '/apps/products-inventory',
+    defaultAccess: 'all_logged_in_users',
     enabled: false
   }
 ];

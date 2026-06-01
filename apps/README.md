@@ -1,5 +1,11 @@
 # Apps
 
-Future internal tools will live here.
+Native internal tools live here.
 
-Do not add real tools yet. Version 0.1 is only login + empty dashboard.
+## Services & Quotes v1
+
+- Protected page: `/apps/services-and-quotes`
+- Protected API namespace: `/api/apps/services-and-quotes/*`
+- Database schema: `apps/services-and-quotes/database/schema.sql`
+
+This first app stores service categories and services with prices in cents, then calculates quote previews from active services only. It does not store customer records or saved quotes.

@@ -43,20 +43,20 @@ export function renderCueRepairsPage({ user }) {
             <strong id="openRepairCount">0</strong>
           </article>
           <article class="cue-stat-card">
-            <span>Waiting approval</span>
-            <strong id="waitingApprovalCount">0</strong>
+            <span>Needs attention</span>
+            <strong id="needsAttentionCount">0</strong>
           </article>
           <article class="cue-stat-card">
-            <span>Ready pickup</span>
+            <span>Ready for pickup</span>
             <strong id="readyForPickupCount">0</strong>
           </article>
           <article class="cue-stat-card">
-            <span>Contacted</span>
+            <span>Contacted, not picked up</span>
             <strong id="contactedNotPickedUpCount">0</strong>
           </article>
           <article class="cue-stat-card">
-            <span>Completed</span>
-            <strong id="completedCount">0</strong>
+            <span>Picked up</span>
+            <strong id="pickedUpCount">0</strong>
           </article>
           <article class="cue-stat-card">
             <span>Cancelled</span>
@@ -90,20 +90,9 @@ export function renderCueRepairsPage({ user }) {
                 <input name="customerEmail" type="email" autocomplete="email" />
               </label>
 
-              <div class="cue-field-grid two-columns">
-                <label>
-                  Cue brand
-                  <input name="cueBrand" type="text" />
-                </label>
-                <label>
-                  Cue model
-                  <input name="cueModel" type="text" />
-                </label>
-              </div>
-
               <label>
                 Cue description
-                <textarea name="cueDescription" rows="3"></textarea>
+                <textarea name="cueDescription" rows="3" required></textarea>
               </label>
 
               <div class="cue-field-grid two-columns">
@@ -125,18 +114,8 @@ export function renderCueRepairsPage({ user }) {
               </label>
 
               <label>
-                Intake notes
+                Notes
                 <textarea name="intakeNotes" rows="3"></textarea>
-              </label>
-
-              <label>
-                Internal staff notes
-                <textarea name="internalNotes" rows="3"></textarea>
-              </label>
-
-              <label class="cue-checkbox-row">
-                <input name="estimateApproved" type="checkbox" />
-                <span>Estimate approved</span>
               </label>
 
               <button class="primary-action" type="submit">Create repair</button>
@@ -158,16 +137,13 @@ export function renderCueRepairsPage({ user }) {
                 <input id="repairSearch" type="search" placeholder="Name, phone, repair number" />
               </label>
               <label>
-                Status
+                View
                 <select id="statusFilter">
                   <option value="open">Open</option>
                   <option value="all">All</option>
                   <option value="received">Received</option>
-                  <option value="assessing">Assessing</option>
-                  <option value="waiting_approval">Waiting approval</option>
-                  <option value="approved">Approved</option>
                   <option value="in_progress">In progress</option>
-                  <option value="waiting_for_parts">Waiting for parts</option>
+                  <option value="needs_attention">Needs attention</option>
                   <option value="ready_for_pickup">Ready for pickup</option>
                   <option value="picked_up">Picked up</option>
                   <option value="cancelled">Cancelled</option>

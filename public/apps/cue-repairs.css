@@ -283,19 +283,17 @@ textarea:focus {
   background: rgba(115, 210, 214, 0.18);
 }
 
-.status-waiting_approval {
+.status-needs_attention {
   color: #755a12;
   background: rgba(248, 203, 86, 0.26);
 }
 
-.status-approved,
 .status-ready_for_pickup {
   color: #23624a;
   background: rgba(92, 184, 133, 0.2);
 }
 
-.status-in_progress,
-.status-waiting_for_parts {
+.status-in_progress {
   color: #315e99;
   background: rgba(84, 140, 210, 0.18);
 }
@@ -362,18 +360,10 @@ textarea:focus {
 }
 
 .cue-card-controls {
-  grid-template-columns: minmax(150px, 0.75fr) minmax(130px, 0.55fr) minmax(190px, 1fr);
+  grid-template-columns: minmax(150px, 220px) minmax(0, 1fr);
   align-items: end;
   padding-top: 14px;
   border-top: 1px solid rgba(61, 111, 131, 0.14);
-}
-
-.cue-notes-control {
-  grid-row: span 2;
-}
-
-.cue-notes-control textarea {
-  min-height: 72px;
 }
 
 .cue-card-actions {

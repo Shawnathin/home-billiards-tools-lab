@@ -6,11 +6,8 @@ const MAX_TEXT_LENGTH = 2000;
 const MAX_MONEY_CENTS = 99999999;
 const STATUSES = new Set([
   'received',
-  'assessing',
-  'waiting_approval',
-  'approved',
   'in_progress',
-  'waiting_for_parts',
+  'needs_attention',
   'ready_for_pickup',
   'picked_up',
   'cancelled'
@@ -150,10 +147,10 @@ cueRepairsApiRouter.get('/summary', async (req, res, next) => {
             and cancelled_at is null
         )::integer as "openRepairCount",
         count(*) filter (
-          where status = 'waiting_approval'
+          where status = 'needs_attention'
             and picked_up_at is null
             and cancelled_at is null
-        )::integer as "waitingApprovalCount",
+        )::integer as "needsAttentionCount",
         count(*) filter (
           where status = 'ready_for_pickup'
             and picked_up_at is null
@@ -165,9 +162,9 @@ cueRepairsApiRouter.get('/summary', async (req, res, next) => {
             and cancelled_at is null
         )::integer as "contactedNotPickedUpCount",
         count(*) filter (
-          where completed_at is not null
+          where (status = 'picked_up' or picked_up_at is not null)
             and cancelled_at is null
-        )::integer as "completedCount",
+        )::integer as "pickedUpCount",
         count(*) filter (
           where status = 'cancelled'
             or cancelled_at is not null
@@ -408,7 +405,7 @@ async function normalizeRepairInput(rawInput, existing) {
     return { error: repairTypeReferenceError };
   }
 
-  const validationError = validateRepairData(data);
+  const validationError = validateRepairData(data, { isCreate: !existing });
 
   if (validationError) {
     return { error: validationError };
@@ -423,7 +420,7 @@ async function normalizeRepairInput(rawInput, existing) {
   return { data };
 }
 
-function validateRepairData(data) {
+function validateRepairData(data, { isCreate = false } = {}) {
   if (!data.customerName) {
     return 'Customer name is required.';
   }
@@ -432,8 +429,12 @@ function validateRepairData(data) {
     return 'Add at least one contact method: phone or email.';
   }
 
+  if (isCreate && !data.cueDescription) {
+    return 'Cue description is required.';
+  }
+
   if (!data.cueBrand && !data.cueModel && !data.cueDescription) {
-    return 'Add a cue brand, cue model, or cue description.';
+    return 'Add a cue description.';
   }
 
   if (data.repairTypeId && !UUID_PATTERN.test(data.repairTypeId)) {

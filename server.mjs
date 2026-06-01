@@ -9,6 +9,8 @@ import { renderCustomersContactsPage } from './apps/customers-contacts/page.mjs'
 import { customersContactsApiRouter } from './apps/customers-contacts/routes.mjs';
 import { renderCueRepairsPage } from './apps/cue-repairs/page.mjs';
 import { cueRepairsApiRouter } from './apps/cue-repairs/routes.mjs';
+import { renderJobsWorkOrdersPage } from './apps/jobs-work-orders/page.mjs';
+import { jobsWorkOrdersApiRouter } from './apps/jobs-work-orders/routes.mjs';
 import { renderProductsInventoryPage } from './apps/products-inventory/page.mjs';
 import { productsInventoryApiRouter } from './apps/products-inventory/routes.mjs';
 import { renderServicesAndQuotesPage } from './apps/services-and-quotes/page.mjs';
@@ -168,6 +170,12 @@ app.get('/apps/warranty-service-tickets', requireAuth, (req, res) => {
 });
 
 app.use('/api/apps/warranty-service-tickets', requireAuth, warrantyServiceTicketsApiRouter);
+
+app.get('/apps/jobs-work-orders', requireAuth, (req, res) => {
+  res.send(renderJobsWorkOrdersPage({ user: req.session.user }));
+});
+
+app.use('/api/apps/jobs-work-orders', requireAuth, jobsWorkOrdersApiRouter);
 
 app.get('/apps/customers-contacts', requireAuth, (req, res) => {
   res.send(renderCustomersContactsPage({ user: req.session.user }));

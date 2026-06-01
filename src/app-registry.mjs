@@ -36,6 +36,15 @@ export const appRegistry = [
     enabled: true
   },
   {
+    id: 'jobs-work-orders',
+    name: 'Jobs / Work Orders',
+    description: 'Track installs, moves, deliveries, service jobs, and internal work orders.',
+    status: 'v1',
+    path: '/apps/jobs-work-orders',
+    defaultAccess: 'all_logged_in_users',
+    enabled: true
+  },
+  {
     id: 'customers-contacts',
     name: 'Customers / Contacts',
     description: 'Track customer and business contact details, notes, status, and contact preferences.',

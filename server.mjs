@@ -11,6 +11,8 @@ import { renderProductsInventoryPage } from './apps/products-inventory/page.mjs'
 import { productsInventoryApiRouter } from './apps/products-inventory/routes.mjs';
 import { renderServicesAndQuotesPage } from './apps/services-and-quotes/page.mjs';
 import { servicesAndQuotesApiRouter } from './apps/services-and-quotes/routes.mjs';
+import { renderWarrantyServiceTicketsPage } from './apps/warranty-service-tickets/page.mjs';
+import { warrantyServiceTicketsApiRouter } from './apps/warranty-service-tickets/routes.mjs';
 import { appRegistry, getEnabledApps } from './src/app-registry.mjs';
 import { pool } from './src/db.mjs';
 import { requireAuth } from './src/middleware.mjs';
@@ -158,6 +160,12 @@ app.get('/apps/products-inventory', requireAuth, (req, res) => {
 });
 
 app.use('/api/apps/products-inventory', requireAuth, productsInventoryApiRouter);
+
+app.get('/apps/warranty-service-tickets', requireAuth, (req, res) => {
+  res.send(renderWarrantyServiceTicketsPage({ user: req.session.user }));
+});
+
+app.use('/api/apps/warranty-service-tickets', requireAuth, warrantyServiceTicketsApiRouter);
 
 app.post('/logout', requireAuth, (req, res, next) => {
   req.session.destroy((error) => {

@@ -1,3 +1,5 @@
+import { canReviewFeedback } from './utils/feedback-access.mjs';
+
 export const appRegistry = [
   {
     id: 'services-and-quotes',
@@ -54,6 +56,16 @@ export const appRegistry = [
     enabled: true
   },
   {
+    id: 'feedback',
+    name: 'Feedback Inbox',
+    description: 'Review internal staff feedback about broken, confusing, missing, or improvable tool behavior.',
+    status: 'v1',
+    path: '/apps/feedback',
+    defaultAccess: 'feedback_reviewers',
+    enabled: true,
+    reviewerOnly: true
+  },
+  {
     id: 'cue-tracker',
     name: 'Cue Tracker',
     description: 'Not connected here. The live staff tracker stays untouched.',
@@ -82,6 +94,18 @@ export const appRegistry = [
   }
 ];
 
-export function getEnabledApps() {
-  return appRegistry.filter((app) => app.enabled);
+export function getEnabledApps({ user } = {}) {
+  return appRegistry.filter((app) => app.enabled && canAccessApp(app, user));
+}
+
+export function getAppByPath(path) {
+  return appRegistry.find((app) => app.path === path) || null;
+}
+
+function canAccessApp(app, user) {
+  if (app.reviewerOnly) {
+    return canReviewFeedback(user);
+  }
+
+  return true;
 }

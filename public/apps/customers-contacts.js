@@ -502,12 +502,17 @@ async function handleRelatedActivityToggle(event) {
 function renderRelatedActivity(content, related) {
   const cueRepairs = related.cueRepairs || [];
   const warrantyServiceTickets = related.warrantyServiceTickets || [];
+  const workOrders = related.workOrders || [];
 
   content.replaceChildren();
 
-  if (cueRepairs.length === 0 && warrantyServiceTickets.length === 0) {
+  if (cueRepairs.length === 0 && warrantyServiceTickets.length === 0 && workOrders.length === 0) {
     content.append(createRelatedStatus('No linked activity.'));
     return;
+  }
+
+  if (workOrders.length > 0) {
+    content.append(createRelatedGroup('Linked work orders', workOrders.map(createWorkOrderRelatedRow)));
   }
 
   if (cueRepairs.length > 0) {
@@ -517,6 +522,33 @@ function renderRelatedActivity(content, related) {
   if (warrantyServiceTickets.length > 0) {
     content.append(createRelatedGroup('Linked warranty/service tickets', warrantyServiceTickets.map(createWarrantyTicketRelatedRow)));
   }
+}
+
+function createWorkOrderRelatedRow(workOrder) {
+  const row = document.createElement('div');
+  row.className = 'contacts-related-row';
+
+  const title = document.createElement('strong');
+  title.textContent = workOrder.workOrderNumber || 'Work order';
+
+  const meta = document.createElement('span');
+  meta.textContent = [
+    formatStatusText(workOrder.status),
+    workOrder.title || '',
+    workOrder.city || '',
+    formatStatusText(workOrder.visitType),
+    formatStatusText(workOrder.assignedTo),
+    workOrder.referenceNumber || ''
+  ].filter(Boolean).join(' / ');
+
+  const dates = document.createElement('small');
+  dates.textContent = [
+    workOrder.scheduleSummary ? `Visit ${workOrder.scheduleSummary}` : '',
+    workOrder.updatedAt ? `Updated ${formatDate(workOrder.updatedAt)}` : ''
+  ].filter(Boolean).join(' / ');
+
+  row.append(title, meta, dates);
+  return row;
 }
 
 function createRelatedGroup(titleText, rows) {

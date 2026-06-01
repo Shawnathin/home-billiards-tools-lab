@@ -127,6 +127,111 @@ customersContactsApiRouter.get('/contacts/:id/related', async (req, res, next) =
   }
 });
 
+customersContactsApiRouter.get('/contacts/:id/properties', async (req, res, next) => {
+  try {
+    const id = readUuid(req.params.id);
+
+    if (!id) {
+      return res.status(400).json({ error: 'A valid contact id is required.' });
+    }
+
+    const contact = await getContactById(id);
+
+    if (!contact) {
+      return res.status(404).json({ error: 'Contact not found.' });
+    }
+
+    const properties = await getContactProperties(id, {
+      includeArchived: readBoolean(req.query?.includeArchived)
+    });
+    return res.json({ properties });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+customersContactsApiRouter.post('/contacts/:id/properties', async (req, res, next) => {
+  try {
+    const id = readUuid(req.params.id);
+
+    if (!id) {
+      return res.status(400).json({ error: 'A valid contact id is required.' });
+    }
+
+    const contact = await getContactById(id);
+
+    if (!contact) {
+      return res.status(404).json({ error: 'Contact not found.' });
+    }
+
+    const normalized = normalizePropertyInput(req.body || {}, null, id);
+
+    if (normalized.error) {
+      return res.status(400).json({ error: normalized.error });
+    }
+
+    const property = await insertContactProperty(normalized.data);
+    return res.status(201).json({ property });
+  } catch (error) {
+    if (isValidationConstraintError(error)) {
+      return res.status(400).json({ error: 'Property could not be saved. Check required address fields.' });
+    }
+
+    return next(error);
+  }
+});
+
+customersContactsApiRouter.patch('/properties/:propertyId', async (req, res, next) => {
+  try {
+    const propertyId = readUuid(req.params.propertyId);
+
+    if (!propertyId) {
+      return res.status(400).json({ error: 'A valid property id is required.' });
+    }
+
+    const existing = await getContactPropertyById(propertyId);
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Property not found.' });
+    }
+
+    const normalized = normalizePropertyInput(req.body || {}, existing, existing.customerContactId);
+
+    if (normalized.error) {
+      return res.status(400).json({ error: normalized.error });
+    }
+
+    const property = await updateContactProperty(propertyId, normalized.data);
+    return res.json({ property });
+  } catch (error) {
+    if (isValidationConstraintError(error)) {
+      return res.status(400).json({ error: 'Property update is missing required address fields.' });
+    }
+
+    return next(error);
+  }
+});
+
+customersContactsApiRouter.post('/properties/:propertyId/archive', async (req, res, next) => {
+  try {
+    const propertyId = readUuid(req.params.propertyId);
+
+    if (!propertyId) {
+      return res.status(400).json({ error: 'A valid property id is required.' });
+    }
+
+    const property = await archiveContactProperty(propertyId);
+
+    if (!property) {
+      return res.status(404).json({ error: 'Property not found.' });
+    }
+
+    return res.json({ property });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 customersContactsApiRouter.get('/contacts/:id', async (req, res, next) => {
   try {
     const id = readUuid(req.params.id);
@@ -563,7 +668,7 @@ async function findIntakeContactMatch({ email, phone }) {
 }
 
 async function getRelatedRecords(contactId) {
-  const [cueRepairsResult, warrantyTicketsResult] = await Promise.all([
+  const [cueRepairsResult, warrantyTicketsResult, workOrdersResult] = await Promise.all([
     pool.query(
       `
         select
@@ -601,13 +706,316 @@ async function getRelatedRecords(contactId) {
         limit 50
       `,
       [contactId]
+    ),
+    pool.query(
+      `
+        select
+          w.id,
+          w.work_order_number as "workOrderNumber",
+          w.title,
+          w.calendar_title as "calendarTitle",
+          w.status,
+          w.reference_number as "referenceNumber",
+          w.updated_at as "updatedAt",
+          (
+            select l.city
+            from job_work_order_locations l
+            where l.work_order_id = w.id
+            order by
+              case l.role
+                when 'service' then 0
+                when 'pickup' then 1
+                when 'delivery' then 2
+                else 3
+              end
+            limit 1
+          ) as "city",
+          (
+            select concat_ws(
+              ' / ',
+              v.scheduled_date::text,
+              case
+                when v.anytime = true then 'anytime'
+                else v.arrival_window_label
+              end
+            )
+            from job_work_order_visits v
+            where v.work_order_id = w.id
+              and v.visit_status <> 'cancelled'
+            order by
+              case when v.scheduled_date is null then 1 else 0 end,
+              v.scheduled_date asc,
+              v.visit_number asc
+            limit 1
+          ) as "scheduleSummary",
+          (
+            select v.visit_type
+            from job_work_order_visits v
+            where v.work_order_id = w.id
+              and v.visit_status <> 'cancelled'
+            order by
+              case when v.scheduled_date is null then 1 else 0 end,
+              v.scheduled_date asc,
+              v.visit_number asc
+            limit 1
+          ) as "visitType",
+          (
+            select v.assigned_to
+            from job_work_order_visits v
+            where v.work_order_id = w.id
+              and v.visit_status <> 'cancelled'
+            order by
+              case when v.scheduled_date is null then 1 else 0 end,
+              v.scheduled_date asc,
+              v.visit_number asc
+            limit 1
+          ) as "assignedTo"
+        from job_work_orders w
+        where w.customer_contact_id = $1
+        order by w.updated_at desc, w.created_at desc
+        limit 50
+      `,
+      [contactId]
     )
   ]);
 
   return {
     cueRepairs: cueRepairsResult.rows.map(formatRelatedRepair),
-    warrantyServiceTickets: warrantyTicketsResult.rows.map(formatRelatedTicket)
+    warrantyServiceTickets: warrantyTicketsResult.rows.map(formatRelatedTicket),
+    workOrders: workOrdersResult.rows.map(formatRelatedWorkOrder)
   };
+}
+
+async function getContactProperties(contactId, { includeArchived = false } = {}) {
+  const result = await pool.query(
+    `
+      select
+        id,
+        customer_contact_id as "customerContactId",
+        label,
+        property_type as "propertyType",
+        address_line_1 as "addressLine1",
+        address_line_2 as "addressLine2",
+        city,
+        province,
+        postal_code as "postalCode",
+        country,
+        site_access_notes as "siteAccessNotes",
+        parking_notes as "parkingNotes",
+        stairs_elevator_notes as "stairsElevatorNotes",
+        room_location_notes as "roomLocationNotes",
+        is_default_service_address as "isDefaultServiceAddress",
+        is_billing_address as "isBillingAddress",
+        archived_at as "archivedAt",
+        created_at as "createdAt",
+        updated_at as "updatedAt"
+      from customer_contact_properties
+      where customer_contact_id = $1
+        and ($2::boolean = true or archived_at is null)
+      order by
+        is_default_service_address desc,
+        archived_at asc nulls first,
+        lower(coalesce(label, '')) asc,
+        updated_at desc
+    `,
+    [contactId, includeArchived]
+  );
+
+  return result.rows.map(formatProperty);
+}
+
+async function getContactPropertyById(propertyId) {
+  const result = await pool.query(
+    `
+      select
+        id,
+        customer_contact_id as "customerContactId",
+        label,
+        property_type as "propertyType",
+        address_line_1 as "addressLine1",
+        address_line_2 as "addressLine2",
+        city,
+        province,
+        postal_code as "postalCode",
+        country,
+        site_access_notes as "siteAccessNotes",
+        parking_notes as "parkingNotes",
+        stairs_elevator_notes as "stairsElevatorNotes",
+        room_location_notes as "roomLocationNotes",
+        is_default_service_address as "isDefaultServiceAddress",
+        is_billing_address as "isBillingAddress",
+        archived_at as "archivedAt",
+        created_at as "createdAt",
+        updated_at as "updatedAt"
+      from customer_contact_properties
+      where id = $1
+      limit 1
+    `,
+    [propertyId]
+  );
+
+  return formatProperty(result.rows[0]);
+}
+
+async function insertContactProperty(data) {
+  const client = await pool.connect();
+
+  try {
+    await client.query('begin');
+
+    if (data.isDefaultServiceAddress) {
+      await client.query(
+        `
+          update customer_contact_properties
+          set is_default_service_address = false
+          where customer_contact_id = $1
+        `,
+        [data.customerContactId]
+      );
+    }
+
+    const result = await client.query(
+      `
+        insert into customer_contact_properties (
+          customer_contact_id,
+          label,
+          property_type,
+          address_line_1,
+          address_line_2,
+          city,
+          province,
+          postal_code,
+          country,
+          site_access_notes,
+          parking_notes,
+          stairs_elevator_notes,
+          room_location_notes,
+          is_default_service_address,
+          is_billing_address
+        )
+        values (
+          $1, $2, $3, $4, $5, $6, $7, $8,
+          $9, $10, $11, $12, $13, $14, $15
+        )
+        returning id
+      `,
+      [
+        data.customerContactId,
+        data.label,
+        data.propertyType,
+        data.addressLine1,
+        data.addressLine2,
+        data.city,
+        data.province,
+        data.postalCode,
+        data.country,
+        data.siteAccessNotes,
+        data.parkingNotes,
+        data.stairsElevatorNotes,
+        data.roomLocationNotes,
+        data.isDefaultServiceAddress,
+        data.isBillingAddress
+      ]
+    );
+
+    await client.query('commit');
+    return getContactPropertyById(result.rows[0].id);
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function updateContactProperty(propertyId, data) {
+  const client = await pool.connect();
+
+  try {
+    await client.query('begin');
+
+    if (data.isDefaultServiceAddress) {
+      await client.query(
+        `
+          update customer_contact_properties
+          set is_default_service_address = false
+          where customer_contact_id = $1
+            and id <> $2
+        `,
+        [data.customerContactId, propertyId]
+      );
+    }
+
+    await client.query(
+      `
+        update customer_contact_properties
+        set
+          label = $1,
+          property_type = $2,
+          address_line_1 = $3,
+          address_line_2 = $4,
+          city = $5,
+          province = $6,
+          postal_code = $7,
+          country = $8,
+          site_access_notes = $9,
+          parking_notes = $10,
+          stairs_elevator_notes = $11,
+          room_location_notes = $12,
+          is_default_service_address = $13,
+          is_billing_address = $14,
+          archived_at = $15
+        where id = $16
+      `,
+      [
+        data.label,
+        data.propertyType,
+        data.addressLine1,
+        data.addressLine2,
+        data.city,
+        data.province,
+        data.postalCode,
+        data.country,
+        data.siteAccessNotes,
+        data.parkingNotes,
+        data.stairsElevatorNotes,
+        data.roomLocationNotes,
+        data.isDefaultServiceAddress,
+        data.isBillingAddress,
+        data.archivedAt,
+        propertyId
+      ]
+    );
+
+    await client.query('commit');
+    return getContactPropertyById(propertyId);
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function archiveContactProperty(propertyId) {
+  const result = await pool.query(
+    `
+      update customer_contact_properties
+      set
+        archived_at = coalesce(archived_at, now()),
+        is_default_service_address = false,
+        is_billing_address = false
+      where id = $1
+      returning id
+    `,
+    [propertyId]
+  );
+
+  if (!result.rows[0]) {
+    return null;
+  }
+
+  return getContactPropertyById(propertyId);
 }
 
 async function getContactTypes() {
@@ -668,6 +1076,58 @@ async function normalizeContactInput(rawInput, existing) {
 
   if (contactTypeError) {
     return { error: contactTypeError };
+  }
+
+  return { data };
+}
+
+function normalizePropertyInput(rawInput, existing, customerContactId) {
+  const input = rawInput || {};
+  const archivedInput = hasInput(input, 'archived')
+    ? readBoolean(getInput(input, 'archived'))
+    : null;
+  const archivedAt = archivedInput === null
+    ? existing?.archivedAt || null
+    : archivedInput
+      ? existing?.archivedAt || new Date()
+      : null;
+  const data = {
+    customerContactId,
+    label: readClean(input, existing, 'label', { maxLength: MAX_SHORT_TEXT_LENGTH }),
+    propertyType: readClean(input, existing, 'propertyType', { maxLength: 80 }) || 'service',
+    addressLine1: readClean(input, existing, 'addressLine1', { maxLength: MAX_SHORT_TEXT_LENGTH }),
+    addressLine2: readClean(input, existing, 'addressLine2', { maxLength: MAX_SHORT_TEXT_LENGTH }),
+    city: readClean(input, existing, 'city', { maxLength: 120 }),
+    province: readClean(input, existing, 'province', { maxLength: 120 }) || 'BC',
+    postalCode: readClean(input, existing, 'postalCode', { maxLength: 40 }),
+    country: readClean(input, existing, 'country', { maxLength: 120 }) || 'Canada',
+    siteAccessNotes: readClean(input, existing, 'siteAccessNotes', { maxLength: MAX_TEXT_LENGTH }),
+    parkingNotes: readClean(input, existing, 'parkingNotes', { maxLength: MAX_TEXT_LENGTH }),
+    stairsElevatorNotes: readClean(input, existing, 'stairsElevatorNotes', { maxLength: MAX_TEXT_LENGTH }),
+    roomLocationNotes: readClean(input, existing, 'roomLocationNotes', { maxLength: MAX_TEXT_LENGTH }),
+    isDefaultServiceAddress: hasInput(input, 'isDefaultServiceAddress')
+      ? readBoolean(getInput(input, 'isDefaultServiceAddress'))
+      : Boolean(existing?.isDefaultServiceAddress),
+    isBillingAddress: hasInput(input, 'isBillingAddress')
+      ? readBoolean(getInput(input, 'isBillingAddress'))
+      : Boolean(existing?.isBillingAddress),
+    archivedAt
+  };
+
+  if (!data.addressLine1) {
+    return { error: 'Address line 1 is required.' };
+  }
+
+  if (!data.city) {
+    return { error: 'City is required.' };
+  }
+
+  if (!data.province) {
+    return { error: 'Province is required.' };
+  }
+
+  if (!data.country) {
+    return { error: 'Country is required.' };
   }
 
   return { data };
@@ -855,6 +1315,28 @@ function formatRelatedTicket(ticket) {
   };
 }
 
+function formatRelatedWorkOrder(workOrder) {
+  return {
+    ...workOrder,
+    title: workOrder.calendarTitle || workOrder.title,
+    city: workOrder.city || '',
+    scheduleSummary: workOrder.scheduleSummary || '',
+    visitType: workOrder.visitType || '',
+    assignedTo: workOrder.assignedTo || ''
+  };
+}
+
+function formatProperty(property) {
+  if (!property) {
+    return null;
+  }
+
+  return {
+    ...property,
+    isArchived: Boolean(property.archivedAt)
+  };
+}
+
 function isValidationConstraintError(error) {
-  return error.code === '23514' || error.code === '23503';
+  return error.code === '23514' || error.code === '23503' || error.code === '23502';
 }

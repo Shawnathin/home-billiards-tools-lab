@@ -15,6 +15,8 @@ import { renderJobsWorkOrdersPage } from './apps/jobs-work-orders/page.mjs';
 import { jobsWorkOrdersApiRouter } from './apps/jobs-work-orders/routes.mjs';
 import { renderProductsInventoryPage } from './apps/products-inventory/page.mjs';
 import { productsInventoryApiRouter } from './apps/products-inventory/routes.mjs';
+import { renderScheduleBoardPage } from './apps/schedule-board/page.mjs';
+import { scheduleBoardApiRouter } from './apps/schedule-board/routes.mjs';
 import { renderServicesAndQuotesPage } from './apps/services-and-quotes/page.mjs';
 import { servicesAndQuotesApiRouter } from './apps/services-and-quotes/routes.mjs';
 import { renderWarrantyServiceTicketsPage } from './apps/warranty-service-tickets/page.mjs';
@@ -180,6 +182,12 @@ app.get('/apps/jobs-work-orders', requireAuth, (req, res) => {
 });
 
 app.use('/api/apps/jobs-work-orders', requireAuth, jobsWorkOrdersApiRouter);
+
+app.get('/apps/schedule-board', requireAuth, (req, res) => {
+  res.send(renderScheduleBoardPage({ user: req.session.user }));
+});
+
+app.use('/api/apps/schedule-board', requireAuth, scheduleBoardApiRouter);
 
 app.get('/apps/customers-contacts', requireAuth, (req, res) => {
   res.send(renderCustomersContactsPage({ user: req.session.user }));

@@ -87,6 +87,7 @@ export function renderWarrantyServiceTicketsPage({ user }) {
                 </label>
                 <div id="ticketContactSelected" class="warranty-selected-contact is-hidden" aria-live="polite"></div>
                 <div id="ticketContactResults" class="warranty-contact-results" aria-live="polite"></div>
+                <div id="ticketContactMatchNotice" class="warranty-contact-match-notice is-hidden" aria-live="polite"></div>
                 <label class="warranty-checkbox-row warranty-contact-capture-option">
                   <input id="ticketSaveCustomerContact" name="saveCustomerContact" type="checkbox" value="true" checked />
                   Save as new contact if no existing contact is linked

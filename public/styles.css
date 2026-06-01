@@ -507,6 +507,7 @@ textarea {
 .ops-main .warranty-shell,
 .ops-main .contacts-shell,
 .ops-main .jobs-shell,
+.ops-main .schedule-shell,
 .ops-main .feedback-shell {
   min-height: 0;
   padding: 0;
@@ -518,6 +519,7 @@ textarea {
 .ops-main .warranty-panel,
 .ops-main .contacts-panel,
 .ops-main .jobs-panel,
+.ops-main .schedule-panel,
 .ops-main .feedback-panel {
   width: 100%;
   margin: 0;
@@ -533,6 +535,7 @@ textarea {
 .ops-main .warranty-title-row,
 .ops-main .contacts-title-row,
 .ops-main .jobs-title-row,
+.ops-main .schedule-title-row,
 .ops-main .feedback-title-row {
   align-items: flex-start;
   padding-bottom: 18px;

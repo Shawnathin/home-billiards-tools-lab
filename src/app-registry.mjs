@@ -56,6 +56,15 @@ export const appRegistry = [
     enabled: true
   },
   {
+    id: 'schedule-board',
+    name: 'Schedule Board',
+    description: 'View booked visits, unscheduled work, completed visits, and office follow-up.',
+    status: 'v1',
+    path: '/apps/schedule-board',
+    defaultAccess: 'all_logged_in_users',
+    enabled: true
+  },
+  {
     id: 'feedback',
     name: 'Feedback Inbox',
     description: 'Review internal staff feedback about broken, confusing, missing, or improvable tool behavior.',

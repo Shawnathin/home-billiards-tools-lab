@@ -17,3 +17,11 @@ This first app stores service categories and services with prices in cents, then
 - Database schema: `apps/cue-repairs/database/schema.sql`
 
 This app stores cue repair intake records, estimates in cents, workflow status, customer contact timestamps, completion, pickup, and cancellation tracking.
+
+## Products / Inventory v1
+
+- Protected page: `/apps/products-inventory`
+- Protected API namespace: `/api/apps/products-inventory/*`
+- Database schema: `apps/products-inventory/database/schema.sql`
+
+This app stores internal product records, CAD prices in cents, location-based inventory quantities, low-stock thresholds, confidence markers, and immutable adjustment history.

@@ -2,6 +2,7 @@ const endpoints = {
   bootstrap: '/api/apps/customers-contacts/bootstrap',
   contacts: '/api/apps/customers-contacts/contacts',
   contact: (id) => `/api/apps/customers-contacts/contacts/${id}`,
+  related: (id) => `/api/apps/customers-contacts/contacts/${id}/related`,
   archive: (id) => `/api/apps/customers-contacts/contacts/${id}/archive`,
   reactivate: (id) => `/api/apps/customers-contacts/contacts/${id}/reactivate`,
   summary: '/api/apps/customers-contacts/summary'
@@ -26,6 +27,7 @@ const state = {
   statuses: [],
   preferredContactMethods: [],
   contacts: [],
+  relatedByContact: new Map(),
   searchTimer: null,
   cityTimer: null
 };
@@ -75,6 +77,7 @@ function bindEvents() {
   });
   elements.list.addEventListener('click', handleContactAction);
   elements.list.addEventListener('change', handleContactCardChange);
+  elements.list.addEventListener('toggle', handleRelatedActivityToggle, true);
   elements.search.addEventListener('input', () => {
     window.clearTimeout(state.searchTimer);
     state.searchTimer = window.setTimeout(loadContacts, 240);
@@ -345,9 +348,10 @@ function createContactCard(contact) {
   }
 
   const notes = createNotesBlock(contact);
+  const relatedActivity = createRelatedActivityPanel(contact);
   const controls = createContactControls(contact);
 
-  card.append(header, meta, timestamps, notes, controls);
+  card.append(header, meta, timestamps, notes, relatedActivity, controls);
   return card;
 }
 
@@ -445,6 +449,139 @@ function createContactControls(contact) {
   controls.append(topGrid, addressGrid, notesGrid, actions);
   details.append(summary, controls);
   return details;
+}
+
+function createRelatedActivityPanel(contact) {
+  const details = document.createElement('details');
+  details.className = 'contacts-related-panel';
+  details.dataset.relatedContactId = contact.id;
+
+  const summary = document.createElement('summary');
+  summary.textContent = 'Related activity';
+
+  const content = document.createElement('div');
+  content.className = 'contacts-related-content';
+  content.dataset.relatedContent = contact.id;
+  content.append(createRelatedStatus('Not loaded.'));
+
+  details.append(summary, content);
+  return details;
+}
+
+async function handleRelatedActivityToggle(event) {
+  const details = event.target;
+
+  if (!details.matches?.('[data-related-contact-id]') || !details.open) {
+    return;
+  }
+
+  const contactId = details.dataset.relatedContactId;
+  const content = details.querySelector('[data-related-content]');
+
+  if (!contactId || !content) {
+    return;
+  }
+
+  if (state.relatedByContact.has(contactId)) {
+    renderRelatedActivity(content, state.relatedByContact.get(contactId));
+    return;
+  }
+
+  content.replaceChildren(createRelatedStatus('Loading related activity...'));
+
+  try {
+    const payload = await fetchJson(endpoints.related(contactId));
+    const related = payload.related || {};
+    state.relatedByContact.set(contactId, related);
+    renderRelatedActivity(content, related);
+  } catch (error) {
+    content.replaceChildren(createRelatedStatus(error.message || 'Related activity could not load.'));
+  }
+}
+
+function renderRelatedActivity(content, related) {
+  const cueRepairs = related.cueRepairs || [];
+  const warrantyServiceTickets = related.warrantyServiceTickets || [];
+
+  content.replaceChildren();
+
+  if (cueRepairs.length === 0 && warrantyServiceTickets.length === 0) {
+    content.append(createRelatedStatus('No linked activity.'));
+    return;
+  }
+
+  if (cueRepairs.length > 0) {
+    content.append(createRelatedGroup('Linked cue repairs', cueRepairs.map(createCueRepairRelatedRow)));
+  }
+
+  if (warrantyServiceTickets.length > 0) {
+    content.append(createRelatedGroup('Linked warranty/service tickets', warrantyServiceTickets.map(createWarrantyTicketRelatedRow)));
+  }
+}
+
+function createRelatedGroup(titleText, rows) {
+  const group = document.createElement('section');
+  group.className = 'contacts-related-group';
+
+  const title = document.createElement('h4');
+  title.textContent = titleText;
+
+  const list = document.createElement('div');
+  list.className = 'contacts-related-list';
+  list.append(...rows);
+
+  group.append(title, list);
+  return group;
+}
+
+function createCueRepairRelatedRow(repair) {
+  const row = document.createElement('div');
+  row.className = 'contacts-related-row';
+
+  const title = document.createElement('strong');
+  title.textContent = repair.repairNumber || 'Cue repair';
+
+  const meta = document.createElement('span');
+  meta.textContent = [
+    formatStatusText(repair.status),
+    formatCueDescription(repair),
+    formatRelatedPrice(repair)
+  ].filter(Boolean).join(' / ');
+
+  const dates = document.createElement('small');
+  dates.textContent = formatRelatedDates(repair);
+
+  row.append(title, meta, dates);
+  return row;
+}
+
+function createWarrantyTicketRelatedRow(ticket) {
+  const row = document.createElement('div');
+  row.className = 'contacts-related-row';
+
+  const title = document.createElement('strong');
+  title.textContent = ticket.ticketNumber || 'Warranty/service ticket';
+
+  const meta = document.createElement('span');
+  meta.textContent = [
+    formatStatusText(ticket.status),
+    formatStatusText(ticket.priority),
+    ticket.productInvolved || '',
+    ticket.issueDescriptionSnippet || ''
+  ].filter(Boolean).join(' / ');
+
+  const dates = document.createElement('small');
+  dates.textContent = formatRelatedDates(ticket);
+
+  row.append(title, meta, dates);
+  return row;
+}
+
+function createRelatedStatus(message) {
+  const status = document.createElement('p');
+  status.className = 'contacts-related-status';
+  status.textContent = message;
+  return status;
 }
 
 async function handleContactAction(event) {
@@ -754,6 +891,46 @@ function formatStatus(status) {
 function formatPreferredContactMethod(method) {
   const match = state.preferredContactMethods.find((option) => option.value === method);
   return match?.label || fallbackPreferredContactMethodLabels[method] || clean(method).replaceAll('_', ' ') || 'Unknown';
+}
+
+function formatCueDescription(repair) {
+  return [
+    repair.cueBrand,
+    repair.cueModel,
+    repair.cueDescription
+  ].filter(Boolean).join(' / ');
+}
+
+function formatRelatedPrice(repair) {
+  const values = [];
+
+  if (Number.isFinite(Number(repair.estimateCents)) && Number(repair.estimateCents) > 0) {
+    values.push(`Estimate ${formatCents(repair.estimateCents)}`);
+  }
+
+  if (Number.isFinite(Number(repair.finalPriceCents)) && Number(repair.finalPriceCents) > 0) {
+    values.push(`Final ${formatCents(repair.finalPriceCents)}`);
+  }
+
+  return values.join(' / ');
+}
+
+function formatRelatedDates(record) {
+  return [
+    record.createdAt ? `Created ${formatDate(record.createdAt)}` : '',
+    record.updatedAt ? `Updated ${formatDate(record.updatedAt)}` : ''
+  ].filter(Boolean).join(' / ');
+}
+
+function formatStatusText(value) {
+  return clean(value).replaceAll('_', ' ');
+}
+
+function formatCents(cents) {
+  return new Intl.NumberFormat('en-CA', {
+    style: 'currency',
+    currency: 'CAD'
+  }).format(Number(cents || 0) / 100);
 }
 
 function formatDate(value) {

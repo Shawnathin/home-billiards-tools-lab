@@ -91,6 +91,20 @@ export function renderWarrantyServiceTicketsPage({ user }) {
                 </label>
               </div>
 
+              <section class="warranty-contact-link" aria-label="Link customer or contact">
+                <div class="warranty-contact-link-heading">
+                  <strong>Link customer/contact</strong>
+                  <button id="clearTicketContactLink" class="secondary-action compact-action" type="button" disabled>Clear</button>
+                </div>
+                <input name="customerContactId" type="hidden" />
+                <label>
+                  Search contacts
+                  <input id="ticketContactSearch" type="search" placeholder="Name, phone, email, company, contact number" autocomplete="off" />
+                </label>
+                <div id="ticketContactSelected" class="warranty-selected-contact is-hidden" aria-live="polite"></div>
+                <div id="ticketContactResults" class="warranty-contact-results" aria-live="polite"></div>
+              </section>
+
               <div class="warranty-field-grid two-columns">
                 <label>
                   Issue type

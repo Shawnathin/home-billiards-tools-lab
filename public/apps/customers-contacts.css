@@ -168,6 +168,10 @@
 .contacts-contact-list,
 .contacts-card-controls,
 .contacts-notes-block,
+.contacts-related-content,
+.contacts-related-group,
+.contacts-related-list,
+.contacts-related-row,
 .contacts-control-notes-grid {
   display: grid;
   gap: 12px;
@@ -385,6 +389,61 @@ textarea:focus {
 
 .contacts-notes-block strong {
   color: var(--brand-dark);
+}
+
+.contacts-related-panel {
+  padding-top: 12px;
+  border-top: 1px solid rgba(61, 111, 131, 0.14);
+}
+
+.contacts-related-panel summary {
+  color: var(--brand-dark);
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.contacts-related-content {
+  padding-top: 12px;
+}
+
+.contacts-related-group {
+  gap: 8px;
+}
+
+.contacts-related-group h4,
+.contacts-related-status {
+  margin: 0;
+}
+
+.contacts-related-group h4 {
+  color: var(--brand-dark);
+  font-size: 0.86rem;
+}
+
+.contacts-related-list {
+  gap: 8px;
+}
+
+.contacts-related-row {
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid rgba(61, 111, 131, 0.12);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.44);
+}
+
+.contacts-related-row strong {
+  color: var(--brand-dark);
+  overflow-wrap: anywhere;
+}
+
+.contacts-related-row span,
+.contacts-related-row small,
+.contacts-related-status {
+  color: var(--muted);
+  font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .contacts-edit-panel {

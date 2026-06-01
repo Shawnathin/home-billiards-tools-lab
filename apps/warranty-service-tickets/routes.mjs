@@ -33,6 +33,10 @@ const ticketSelectSql = `
     t.customer_name as "customerName",
     t.customer_phone as "customerPhone",
     t.customer_email as "customerEmail",
+    t.customer_contact_id as "customerContactId",
+    cc.contact_number as "customerContactNumber",
+    cc.display_name as "customerContactName",
+    cc.company_name as "customerContactCompanyName",
     t.issue_type_id as "issueTypeId",
     i.name as "issueTypeName",
     i.slug as "issueTypeSlug",
@@ -52,6 +56,7 @@ const ticketSelectSql = `
     t.updated_at as "updatedAt"
   from warranty_service_tickets t
   left join warranty_ticket_issue_types i on i.id = t.issue_type_id
+  left join customer_contacts cc on cc.id = t.customer_contact_id
 `;
 
 export const warrantyServiceTicketsApiRouter = express.Router();
@@ -259,6 +264,8 @@ function buildTicketFilters(query) {
       or t.customer_name ilike $${index}
       or coalesce(t.customer_phone, '') ilike $${index}
       or coalesce(t.customer_email, '') ilike $${index}
+      or coalesce(cc.contact_number, '') ilike $${index}
+      or coalesce(cc.display_name, '') ilike $${index}
       or coalesce(t.product_involved, '') ilike $${index}
       or coalesce(t.order_or_job_reference, '') ilike $${index}
       or coalesce(t.issue_description, '') ilike $${index}
@@ -283,6 +290,7 @@ async function insertTicket(data) {
         customer_name,
         customer_phone,
         customer_email,
+        customer_contact_id,
         issue_type_id,
         issue_type_other,
         product_involved,
@@ -299,7 +307,7 @@ async function insertTicket(data) {
       )
       values (
         $1, $2, $3, $4, $5, $6, $7, $8,
-        $9, $10, $11, $12, $13, $14, $15, $16
+        $9, $10, $11, $12, $13, $14, $15, $16, $17
       )
       returning id
     `,
@@ -307,6 +315,7 @@ async function insertTicket(data) {
       data.customerName,
       data.customerPhone,
       data.customerEmail,
+      data.customerContactId,
       data.issueTypeId,
       data.issueTypeOther,
       data.productInvolved,
@@ -332,6 +341,7 @@ async function updateTicket(id, existing, data) {
     customer_name: data.customerName,
     customer_phone: data.customerPhone,
     customer_email: data.customerEmail,
+    customer_contact_id: data.customerContactId,
     issue_type_id: data.issueTypeId,
     issue_type_other: data.issueTypeOther,
     product_involved: data.productInvolved,
@@ -426,6 +436,7 @@ async function normalizeTicketInput(rawInput, existing) {
     customerName: readClean(input, existing, 'customerName', { maxLength: 180 }),
     customerPhone: readClean(input, existing, 'customerPhone', { maxLength: 80 }),
     customerEmail: readClean(input, existing, 'customerEmail', { maxLength: 240, lowercase: true }),
+    customerContactId: readClean(input, existing, 'customerContactId', { maxLength: 80 }),
     issueTypeId: readClean(input, existing, 'issueTypeId', { maxLength: 80 }),
     issueTypeOther: readClean(input, existing, 'issueTypeOther', { maxLength: MAX_SHORT_TEXT_LENGTH }),
     productInvolved: readClean(input, existing, 'productInvolved', { maxLength: MAX_SHORT_TEXT_LENGTH }),
@@ -443,6 +454,10 @@ async function normalizeTicketInput(rawInput, existing) {
     data.issueTypeId = null;
   }
 
+  if (data.customerContactId && !UUID_PATTERN.test(data.customerContactId)) {
+    return { error: 'Choose a valid customer/contact link.' };
+  }
+
   const validationError = validateTicketData(data);
 
   if (validationError) {
@@ -453,6 +468,12 @@ async function normalizeTicketInput(rawInput, existing) {
 
   if (issueTypeError) {
     return { error: issueTypeError };
+  }
+
+  const contactError = await validateCustomerContact(data.customerContactId);
+
+  if (contactError) {
+    return { error: contactError };
   }
 
   return { data };
@@ -517,6 +538,24 @@ async function validateIssueType(data, input, existing) {
   }
 
   return '';
+}
+
+async function validateCustomerContact(customerContactId) {
+  if (!customerContactId) {
+    return '';
+  }
+
+  const result = await pool.query(
+    `
+      select id
+      from customer_contacts
+      where id = $1
+      limit 1
+    `,
+    [customerContactId]
+  );
+
+  return result.rows[0] ? '' : 'Selected customer/contact is unavailable.';
 }
 
 function readUuid(value) {

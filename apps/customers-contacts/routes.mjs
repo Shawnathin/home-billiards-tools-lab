@@ -88,6 +88,27 @@ customersContactsApiRouter.get('/contacts', async (req, res, next) => {
   }
 });
 
+customersContactsApiRouter.get('/contacts/:id/related', async (req, res, next) => {
+  try {
+    const id = readUuid(req.params.id);
+
+    if (!id) {
+      return res.status(400).json({ error: 'A valid contact id is required.' });
+    }
+
+    const contact = await getContactById(id);
+
+    if (!contact) {
+      return res.status(404).json({ error: 'Contact not found.' });
+    }
+
+    const related = await getRelatedRecords(id);
+    return res.json({ related });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 customersContactsApiRouter.get('/contacts/:id', async (req, res, next) => {
   try {
     const id = readUuid(req.params.id);
@@ -463,6 +484,54 @@ async function getContactById(id) {
   return result.rows[0] || null;
 }
 
+async function getRelatedRecords(contactId) {
+  const [cueRepairsResult, warrantyTicketsResult] = await Promise.all([
+    pool.query(
+      `
+        select
+          id,
+          repair_number as "repairNumber",
+          status,
+          cue_brand as "cueBrand",
+          cue_model as "cueModel",
+          cue_description as "cueDescription",
+          estimate_cents as "estimateCents",
+          final_price_cents as "finalPriceCents",
+          created_at as "createdAt",
+          updated_at as "updatedAt"
+        from cue_repair_jobs
+        where customer_contact_id = $1
+        order by updated_at desc, created_at desc
+        limit 50
+      `,
+      [contactId]
+    ),
+    pool.query(
+      `
+        select
+          id,
+          ticket_number as "ticketNumber",
+          status,
+          priority,
+          product_involved as "productInvolved",
+          left(issue_description, 180) as "issueDescriptionSnippet",
+          created_at as "createdAt",
+          updated_at as "updatedAt"
+        from warranty_service_tickets
+        where customer_contact_id = $1
+        order by updated_at desc, created_at desc
+        limit 50
+      `,
+      [contactId]
+    )
+  ]);
+
+  return {
+    cueRepairs: cueRepairsResult.rows.map(formatRelatedRepair),
+    warrantyServiceTickets: warrantyTicketsResult.rows.map(formatRelatedTicket)
+  };
+}
+
 async function getContactTypes() {
   const result = await pool.query(`
     select
@@ -673,6 +742,21 @@ function formatContact(contact) {
   return {
     ...contact,
     isArchived: contact.status === 'archived'
+  };
+}
+
+function formatRelatedRepair(repair) {
+  return {
+    ...repair,
+    estimateCents: repair.estimateCents === null ? null : Number(repair.estimateCents || 0),
+    finalPriceCents: repair.finalPriceCents === null ? null : Number(repair.finalPriceCents || 0)
+  };
+}
+
+function formatRelatedTicket(ticket) {
+  return {
+    ...ticket,
+    issueDescriptionSnippet: ticket.issueDescriptionSnippet || ''
   };
 }
 

@@ -2,6 +2,7 @@ const endpoints = {
   bootstrap: '/api/apps/jobs-work-orders/bootstrap',
   workOrders: '/api/apps/jobs-work-orders/work-orders',
   workOrder: (id) => `/api/apps/jobs-work-orders/work-orders/${id}`,
+  status: (id) => `/api/apps/jobs-work-orders/work-orders/${id}/status`,
   visits: (id) => `/api/apps/jobs-work-orders/work-orders/${id}/visits`,
   visit: (id, visitId) => `/api/apps/jobs-work-orders/work-orders/${id}/visits/${visitId}`,
   completeVisit: (id, visitId) => `/api/apps/jobs-work-orders/work-orders/${id}/visits/${visitId}/complete`,
@@ -15,6 +16,8 @@ const endpoints = {
   properties: (contactId) => `/api/apps/customers-contacts/contacts/${contactId}/properties`
 };
 
+const CONTACT_ADDRESS_OPTION_VALUE = '__contact_address__';
+
 const fallbackStatusLabels = {
   quoted: 'Quoted',
   to_be_scheduled: 'To be scheduled',
@@ -23,6 +26,36 @@ const fallbackStatusLabels = {
   invoiced: 'Invoiced',
   paid: 'Paid',
   cancelled: 'Cancelled'
+};
+
+const lifecycleDetails = {
+  quoted: 'Quoted work that has not been scheduled yet.',
+  to_be_scheduled: 'Ready for office follow-up and scheduling.',
+  booked: 'A booked visit is on the schedule.',
+  completed: 'Crew/service work is done.',
+  invoiced: 'Office has invoiced the job; payment is still outstanding.',
+  paid: 'Job is fully done and payment/paperwork is finalized.',
+  cancelled: 'Work order is cancelled but retained for history.'
+};
+
+const lifecycleLabels = {
+  completed: 'Work done',
+  invoiced: 'Outstanding / not paid',
+  paid: 'Closed / paid',
+  cancelled: 'Cancelled',
+  booked: 'Booked visit',
+  quoted: 'Quoted',
+  to_be_scheduled: 'Needs scheduling'
+};
+
+const statusNextActions = {
+  quoted: ['to_be_scheduled', 'booked', 'cancelled'],
+  to_be_scheduled: ['booked', 'cancelled'],
+  booked: ['completed', 'cancelled'],
+  completed: ['invoiced'],
+  invoiced: ['paid'],
+  paid: [],
+  cancelled: ['to_be_scheduled']
 };
 
 const fallbackAssignmentLabels = {
@@ -64,6 +97,7 @@ const elements = {
   contactSearch: document.getElementById('workOrderContactSearch'),
   contactResults: document.getElementById('workOrderContactResults'),
   selectedContact: document.getElementById('workOrderContactSelected'),
+  contactAddressOption: document.getElementById('workOrderContactAddressOption'),
   clearContactButton: document.getElementById('clearWorkOrderContactLink'),
   addQuickPropertyButton: document.getElementById('addQuickProperty'),
   quickProperty: {
@@ -126,6 +160,7 @@ function bindEvents() {
     state.contactSearchTimer = window.setTimeout(searchContactsForLink, 240);
   });
   elements.contactResults.addEventListener('click', handleContactResultClick);
+  elements.contactAddressOption.addEventListener('click', handleContactAddressOptionClick);
   elements.clearContactButton.addEventListener('click', clearSelectedContact);
   elements.addQuickPropertyButton.addEventListener('click', handleQuickAddProperty);
   document.querySelectorAll('[data-property-select]').forEach((select) => {
@@ -301,6 +336,8 @@ async function handleCreateWorkOrder(event) {
 
   await withBusyButton(elements.saveWorkOrderButton, async () => {
     try {
+      await saveCheckedLocationProperties(payload);
+
       const result = await fetchJson(endpoints.workOrders, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -363,9 +400,10 @@ function getLocationPayload(locationMode) {
   const roles = locationMode === 'pickup_delivery' ? ['pickup', 'delivery'] : ['service'];
   return roles.map((role) => {
     const propertySelect = document.querySelector(`[data-property-select="${role}"]`);
+    const selectedPropertyId = propertySelect?.value || '';
     return {
       role,
-      customerContactPropertyId: propertySelect?.value || null,
+      customerContactPropertyId: selectedPropertyId === CONTACT_ADDRESS_OPTION_VALUE ? null : selectedPropertyId || null,
       label: readLocationField(role, 'label'),
       addressLine1: readLocationField(role, 'addressLine1'),
       addressLine2: readLocationField(role, 'addressLine2'),
@@ -383,7 +421,7 @@ function getLocationPayload(locationMode) {
 
 function validateCreatePayload(payload) {
   if (!clean(payload.customerContactId)) {
-    return 'Choose a customer/contact.';
+    return 'Choose a customer before creating a work order.';
   }
 
   if (!clean(payload.jobTypeId)) {
@@ -402,7 +440,7 @@ function validateCreatePayload(payload) {
       const delivery = payload.locations.find((location) => location.role === 'delivery');
 
       if (!locationHasAddress(pickup) || !locationHasAddress(delivery)) {
-        return 'Add pickup and delivery addresses before booking.';
+        return 'Pickup + delivery work orders need both pickup and delivery addresses before booking.';
       }
     } else if (!locationHasAddress(payload.locations.find((location) => location.role === 'service'))) {
       return 'Add a service address before booking.';
@@ -413,7 +451,7 @@ function validateCreatePayload(payload) {
     }
 
     if (!payload.primaryVisit.anytime && !payload.primaryVisit.arrivalWindowLabel && !payload.primaryVisit.startTime) {
-      return 'Choose an arrival window, Anytime, or a start time.';
+      return 'Booked work orders need an arrival window, Anytime, or a start time.';
     }
   }
 
@@ -456,6 +494,10 @@ function createWorkOrderCard(workOrder) {
   statusArea.className = 'jobs-status-area';
   statusArea.append(createTypePill(workOrder.workTypeAbbreviation), createStatusPill(workOrder.status));
 
+  if (workOrder.lifecycleLabel) {
+    statusArea.append(createLifecyclePill(workOrder));
+  }
+
   if (workOrder.isArchived) {
     statusArea.append(createArchivePill());
   }
@@ -472,6 +514,7 @@ function createWorkOrderCard(workOrder) {
     createMetaItem('Location', workOrder.locationSummary),
     createMetaItem('Schedule', workOrder.scheduleSummary),
     createMetaItem('Assigned', workOrder.assignedToLabel),
+    createMetaItem('Lifecycle', formatLifecycleDetail(workOrder)),
     createMetaItem('Reference', formatReference(workOrder)),
     createMetaItem('Product / table', workOrder.productOrTableInvolved)
   );
@@ -489,6 +532,13 @@ function createStatusPill(status) {
   const pill = document.createElement('span');
   pill.className = `jobs-status-pill status-${status}`;
   pill.textContent = formatStatus(status);
+  return pill;
+}
+
+function createLifecyclePill(workOrder) {
+  const pill = document.createElement('span');
+  pill.className = `jobs-lifecycle-pill lifecycle-${workOrder.status}`;
+  pill.textContent = workOrder.lifecycleLabel || formatLifecycleLabel(workOrder.status);
   return pill;
 }
 
@@ -606,20 +656,53 @@ function createTimestampRow(workOrder) {
 }
 
 function createWorkOrderControls(workOrder) {
+  const panels = document.createElement('div');
+  panels.className = 'jobs-card-panels';
+  panels.append(createWorkOrderEditPanel(workOrder), createStatusUpdatePanel(workOrder));
+  return panels;
+}
+
+function createWorkOrderEditPanel(workOrder) {
   const details = document.createElement('details');
   details.className = 'jobs-card-controls';
 
   const summary = document.createElement('summary');
-  summary.textContent = 'Update workflow';
+  summary.textContent = 'Edit Work Order';
 
   const controls = document.createElement('div');
   controls.className = 'jobs-card-control-body';
 
   const primaryVisit = workOrder.primaryVisit || {};
-  const topGrid = document.createElement('div');
-  topGrid.className = 'jobs-control-grid';
-  topGrid.append(
-    createSelectControl('Status', 'status', state.statuses, workOrder.status),
+  const message = createCardMessage();
+  const linkedCustomer = document.createElement('p');
+  linkedCustomer.className = 'jobs-linked-customer-line';
+  linkedCustomer.textContent = [
+    'Customer',
+    formatCustomer(workOrder),
+    workOrder.customerPhone || workOrder.customerEmail
+      ? [workOrder.customerPhone, workOrder.customerEmail].filter(Boolean).join(' / ')
+      : ''
+  ].filter(Boolean).join(': ');
+
+  const workDetailsGrid = document.createElement('div');
+  workDetailsGrid.className = 'jobs-control-grid';
+  workDetailsGrid.append(
+    createSelectControl('Work type', 'jobTypeId', getWorkTypeOptionsForWorkOrder(workOrder), workOrder.jobTypeId || ''),
+    createInputControl('Abbreviation', 'workTypeAbbreviation', workOrder.workTypeAbbreviation || ''),
+    createInputControl('Title', 'title', workOrder.title || ''),
+    createInputControl('Product / table details', 'productOrTableInvolved', workOrder.productOrTableInvolved || ''),
+    createInputControl('Reference number', 'referenceNumber', workOrder.referenceNumber || ''),
+    createInputControl('Old system reference', 'oldSystemReference', workOrder.oldSystemReference || ''),
+    createInputControl('Customer reference', 'customerReferenceNumber', workOrder.customerReferenceNumber || ''),
+    createInputControl('Contact person', 'contactPersonName', workOrder.contactPersonName || ''),
+    createInputControl('Contact phone', 'contactPersonPhone', workOrder.contactPersonPhone || '', 'tel'),
+    createInputControl('Contact email', 'contactPersonEmail', workOrder.contactPersonEmail || '', 'email')
+  );
+
+  const locationControls = createCardLocationControls(workOrder);
+  const scheduleGrid = document.createElement('div');
+  scheduleGrid.className = 'jobs-control-grid';
+  scheduleGrid.append(
     createSelectControl('Visit type', 'visitType', state.visitTypes, primaryVisit.visitType || 'service'),
     createSelectControl('Schedule', 'scheduleState', state.scheduleStates, primaryVisit.scheduleState || 'unscheduled'),
     createInputControl('Booked date', 'scheduledDate', toDateInput(primaryVisit.scheduledDate), 'date'),
@@ -638,29 +721,176 @@ function createWorkOrderControls(workOrder) {
   const notesGrid = document.createElement('div');
   notesGrid.className = 'jobs-control-notes-grid';
   notesGrid.append(
+    createTextareaControl('Work description', 'serviceDetails', workOrder.workDescription || workOrder.serviceDetails || ''),
     createTextareaControl('Visit instructions', 'visitInstructions', primaryVisit.visitInstructions || ''),
     createTextareaControl('Timing notes', 'timingNotes', primaryVisit.timingNotes || ''),
-    createTextareaControl('Office notes', 'internalNotes', workOrder.internalNotes || ''),
-    createTextareaControl('Completion notes', 'completionNotes', workOrder.completionNotes || ''),
-    createSelectControl('Cancellation reason', 'cancellationReasonCode', state.cancellationReasons, workOrder.cancellationReasonCode || ''),
-    createTextareaControl('Cancellation notes', 'cancellationReason', workOrder.cancellationReason || '')
+    createTextareaControl('Office notes', 'internalNotes', workOrder.internalNotes || '')
   );
 
   const addVisit = createAddVisitPanel(workOrder);
   const actions = document.createElement('div');
   actions.className = 'jobs-card-actions';
   actions.append(
-    createActionButton('Save', 'save', workOrder.id, 'primary-action compact-action'),
-    createActionButton('Complete', 'complete', workOrder.id),
-    createActionButton('Cancel', 'cancel', workOrder.id, 'secondary-action compact-action danger-action'),
+    createActionButton('Save edits', 'save', workOrder.id, 'primary-action compact-action'),
     workOrder.isArchived
       ? createActionButton('Reactivate', 'reactivate', workOrder.id)
       : createActionButton('Archive', 'archive', workOrder.id)
   );
 
-  controls.append(hiddenVisitId, topGrid, notesGrid, addVisit, actions);
+  controls.append(message, linkedCustomer, hiddenVisitId, workDetailsGrid, locationControls, scheduleGrid, notesGrid, addVisit, actions);
   details.append(summary, controls);
   return details;
+}
+
+function createStatusUpdatePanel(workOrder) {
+  const details = document.createElement('details');
+  details.className = 'jobs-status-update-panel';
+
+  const summary = document.createElement('summary');
+  summary.textContent = 'Update Status';
+
+  const controls = document.createElement('div');
+  controls.className = 'jobs-status-update-body';
+
+  const message = createCardMessage();
+  const current = document.createElement('div');
+  current.className = 'jobs-status-current';
+  current.append(createStatusPill(workOrder.status), createLifecyclePill(workOrder));
+
+  const detail = document.createElement('p');
+  detail.textContent = formatLifecycleDetail(workOrder);
+  current.append(detail);
+
+  const nextActions = document.createElement('div');
+  nextActions.className = 'jobs-status-next-actions';
+  const nextStatuses = statusNextActions[workOrder.status] || [];
+
+  if (nextStatuses.length > 0) {
+    for (const status of nextStatuses) {
+      nextActions.append(createStatusActionButton(status, workOrder.id));
+    }
+  } else {
+    const done = document.createElement('p');
+    done.className = 'jobs-related-line';
+    done.textContent = 'No next status action needed.';
+    nextActions.append(done);
+  }
+
+  const manual = document.createElement('div');
+  manual.className = 'jobs-status-manual';
+  manual.append(
+    createStatusSelect(workOrder.status),
+    createActionButton('Apply status', 'status', workOrder.id, 'primary-action compact-action')
+  );
+
+  const notesGrid = document.createElement('div');
+  notesGrid.className = 'jobs-control-notes-grid';
+  notesGrid.append(
+    createTextareaControl('Completion notes', 'completionNotes', workOrder.completionNotes || ''),
+    createSelectControl('Cancellation reason', 'cancellationReasonCode', state.cancellationReasons, workOrder.cancellationReasonCode || ''),
+    createTextareaControl('Cancellation notes', 'cancellationReason', workOrder.cancellationReason || '')
+  );
+
+  controls.append(message, current, nextActions, manual, notesGrid);
+  details.append(summary, controls);
+  return details;
+}
+
+function createCardMessage() {
+  const message = document.createElement('p');
+  message.className = 'jobs-card-message';
+  message.dataset.cardMessage = 'true';
+  message.setAttribute('role', 'status');
+  message.setAttribute('aria-live', 'polite');
+  return message;
+}
+
+function getWorkTypeOptionsForWorkOrder(workOrder) {
+  const options = state.workTypes.map((workType) => ({
+    value: workType.id,
+    label: `${workType.abbreviation ? `${workType.abbreviation} - ` : ''}${workType.name}`
+  }));
+
+  if (workOrder.jobTypeId && !options.some((option) => option.value === workOrder.jobTypeId)) {
+    options.push({
+      value: workOrder.jobTypeId,
+      label: workOrder.jobTypeName || 'Existing work type'
+    });
+  }
+
+  return options;
+}
+
+function createCardLocationControls(workOrder) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'jobs-card-location-controls';
+  const locations = workOrder.locations || [];
+
+  wrapper.append(
+    createSelectControl('Location mode', 'locationMode', state.locationModes, workOrder.locationMode || 'service'),
+    createCardLocationGroup('service', locations.find((location) => location.role === 'service')),
+    createCardLocationGroup('pickup', locations.find((location) => location.role === 'pickup')),
+    createCardLocationGroup('delivery', locations.find((location) => location.role === 'delivery'))
+  );
+
+  return wrapper;
+}
+
+function createCardLocationGroup(role, location = {}) {
+  const group = document.createElement('div');
+  group.className = 'jobs-card-location-group';
+
+  const heading = document.createElement('strong');
+  heading.textContent = `${formatStatusText(role)} address`;
+
+  const propertyId = document.createElement('input');
+  propertyId.type = 'hidden';
+  propertyId.dataset.workOrderLocationField = `${role}.customerContactPropertyId`;
+  propertyId.value = location?.customerContactPropertyId || '';
+
+  const grid = document.createElement('div');
+  grid.className = 'jobs-control-grid';
+  grid.append(
+    createCardLocationInput(role, 'label', 'Label', location?.label || ''),
+    createCardLocationInput(role, 'addressLine1', 'Address line 1', location?.addressLine1 || ''),
+    createCardLocationInput(role, 'addressLine2', 'Address line 2', location?.addressLine2 || ''),
+    createCardLocationInput(role, 'city', 'City', location?.city || ''),
+    createCardLocationInput(role, 'province', 'Province', location?.province || 'BC'),
+    createCardLocationInput(role, 'postalCode', 'Postal code', location?.postalCode || ''),
+    createCardLocationInput(role, 'siteAccessNotes', 'Site/access notes', location?.siteAccessNotes || ''),
+    createCardLocationInput(role, 'parkingNotes', 'Parking notes', location?.parkingNotes || ''),
+    createCardLocationInput(role, 'stairsElevatorNotes', 'Stairs/elevator notes', location?.stairsElevatorNotes || ''),
+    createCardLocationInput(role, 'roomLocationNotes', 'Room/location notes', location?.roomLocationNotes || '')
+  );
+
+  group.append(heading, propertyId, grid);
+  return group;
+}
+
+function createCardLocationInput(role, fieldName, label, value) {
+  const control = createInputControl(label, `${role}.${fieldName}`, value);
+  const input = control.querySelector('input');
+  input.dataset.workOrderLocationField = `${role}.${fieldName}`;
+  delete input.dataset.workOrderField;
+  return control;
+}
+
+function createStatusActionButton(status, workOrderId) {
+  const button = createActionButton(`Mark ${formatStatus(status)}`, 'status', workOrderId, 'secondary-action compact-action');
+  button.dataset.statusValue = status;
+  return button;
+}
+
+function createStatusSelect(selectedValue) {
+  const labelElement = document.createElement('label');
+  labelElement.textContent = 'Status';
+
+  const select = document.createElement('select');
+  select.dataset.workOrderStatusField = 'status';
+  appendOptions(select, state.statuses, selectedValue, 'Select status');
+
+  labelElement.append(select);
+  return labelElement;
 }
 
 function createAddVisitPanel(workOrder) {
@@ -705,9 +935,15 @@ async function handleWorkOrderAction(event) {
   const workOrderId = button.dataset.workOrderId;
   const visitId = button.dataset.visitId;
   const action = button.dataset.workOrderAction;
-  const request = buildActionRequest(workOrderId, action, visitId);
+  const request = buildActionRequest(workOrderId, action, visitId, button);
 
   if (!request) {
+    return;
+  }
+
+  if (request.error) {
+    setCardMessage(workOrderId, request.error, true);
+    setListStatus(request.error, true);
     return;
   }
 
@@ -715,21 +951,67 @@ async function handleWorkOrderAction(event) {
     try {
       await fetchJson(request.url, request.options);
       await Promise.all([loadSummary(), loadWorkOrders()]);
+      setListStatus(request.successMessage || 'Work order updated.');
     } catch (error) {
+      setCardMessage(workOrderId, error.message || 'Work order could not be updated.', true);
       setListStatus(error.message || 'Work order could not be updated.', true);
     }
   });
 }
 
-function buildActionRequest(workOrderId, action, visitId) {
+function buildActionRequest(workOrderId, action, visitId, button) {
   if (action === 'save') {
+    const payload = buildPatchPayload(workOrderId);
+    const validationError = validateEditPayload(payload, findWorkOrder(workOrderId));
+
+    if (validationError) {
+      return { error: validationError };
+    }
+
     return {
       url: endpoints.workOrder(workOrderId),
       options: {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildPatchPayload(workOrderId))
-      }
+        body: JSON.stringify(payload)
+      },
+      successMessage: 'Work order details saved.'
+    };
+  }
+
+  if (action === 'status') {
+    const status = button?.dataset.statusValue || readStatusField(workOrderId);
+    const validationError = validateStatusPayload(workOrderId, status);
+
+    if (validationError) {
+      return { error: validationError };
+    }
+
+    const body = { status };
+    const completionNotes = readCardField(workOrderId, 'completionNotes');
+    const cancellationReason = readCardField(workOrderId, 'cancellationReason');
+    const cancellationReasonCode = readCardField(workOrderId, 'cancellationReasonCode');
+
+    if (completionNotes || status === 'completed') {
+      body.completionNotes = completionNotes;
+    }
+
+    if (cancellationReason || status === 'cancelled') {
+      body.cancellationReason = cancellationReason;
+    }
+
+    if (cancellationReasonCode || status === 'cancelled') {
+      body.cancellationReasonCode = cancellationReasonCode;
+    }
+
+    return {
+      url: endpoints.status(workOrderId),
+      options: {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      },
+      successMessage: `Status updated to ${formatStatus(status)}.`
     };
   }
 
@@ -740,7 +1022,8 @@ function buildActionRequest(workOrderId, action, visitId) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ completionNotes: readCardField(workOrderId, 'completionNotes') })
-      }
+      },
+      successMessage: 'Work order marked completed.'
     };
   }
 
@@ -754,16 +1037,17 @@ function buildActionRequest(workOrderId, action, visitId) {
           cancellationReason: readCardField(workOrderId, 'cancellationReason'),
           cancellationReasonCode: readCardField(workOrderId, 'cancellationReasonCode')
         })
-      }
+      },
+      successMessage: 'Work order cancelled.'
     };
   }
 
   if (action === 'archive') {
-    return { url: endpoints.archive(workOrderId), options: { method: 'POST' } };
+    return { url: endpoints.archive(workOrderId), options: { method: 'POST' }, successMessage: 'Work order archived.' };
   }
 
   if (action === 'reactivate') {
-    return { url: endpoints.reactivate(workOrderId), options: { method: 'POST' } };
+    return { url: endpoints.reactivate(workOrderId), options: { method: 'POST' }, successMessage: 'Work order reactivated.' };
   }
 
   if (action === 'addVisit') {
@@ -773,7 +1057,8 @@ function buildActionRequest(workOrderId, action, visitId) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(buildNewVisitPayload(workOrderId))
-      }
+      },
+      successMessage: 'Visit added.'
     };
   }
 
@@ -784,7 +1069,8 @@ function buildActionRequest(workOrderId, action, visitId) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ completionNotes: readCardField(workOrderId, 'completionNotes') })
-      }
+      },
+      successMessage: 'Visit completed.'
     };
   }
 
@@ -795,7 +1081,8 @@ function buildActionRequest(workOrderId, action, visitId) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cancellationReason: readCardField(workOrderId, 'cancellationReason') })
-      }
+      },
+      successMessage: 'Visit cancelled.'
     };
   }
 
@@ -820,13 +1107,43 @@ function buildPatchPayload(workOrderId) {
   };
 
   return {
-    status: readCardField(workOrderId, 'status') || 'to_be_scheduled',
+    contactPersonName: readCardField(workOrderId, 'contactPersonName'),
+    contactPersonPhone: readCardField(workOrderId, 'contactPersonPhone'),
+    contactPersonEmail: readCardField(workOrderId, 'contactPersonEmail'),
+    jobTypeId: readCardField(workOrderId, 'jobTypeId'),
+    workTypeAbbreviation: readCardField(workOrderId, 'workTypeAbbreviation'),
+    locationMode: readCardField(workOrderId, 'locationMode') || 'service',
+    locations: buildCardLocationPayload(workOrderId),
+    title: readCardField(workOrderId, 'title'),
+    productOrTableInvolved: readCardField(workOrderId, 'productOrTableInvolved'),
+    referenceNumber: readCardField(workOrderId, 'referenceNumber'),
+    oldSystemReference: readCardField(workOrderId, 'oldSystemReference'),
+    customerReferenceNumber: readCardField(workOrderId, 'customerReferenceNumber'),
+    serviceDetails: readCardField(workOrderId, 'serviceDetails'),
     internalNotes: readCardField(workOrderId, 'internalNotes'),
-    completionNotes: readCardField(workOrderId, 'completionNotes'),
-    cancellationReason: readCardField(workOrderId, 'cancellationReason'),
-    cancellationReasonCode: readCardField(workOrderId, 'cancellationReasonCode'),
     visits: [primaryVisit]
   };
+}
+
+function buildCardLocationPayload(workOrderId) {
+  const mode = readCardField(workOrderId, 'locationMode') || 'service';
+  const roles = mode === 'pickup_delivery' ? ['pickup', 'delivery'] : ['service'];
+
+  return roles.map((role) => ({
+    role,
+    customerContactPropertyId: readCardLocationField(workOrderId, role, 'customerContactPropertyId') || null,
+    label: readCardLocationField(workOrderId, role, 'label'),
+    addressLine1: readCardLocationField(workOrderId, role, 'addressLine1'),
+    addressLine2: readCardLocationField(workOrderId, role, 'addressLine2'),
+    city: readCardLocationField(workOrderId, role, 'city'),
+    province: readCardLocationField(workOrderId, role, 'province') || 'BC',
+    postalCode: readCardLocationField(workOrderId, role, 'postalCode'),
+    country: 'Canada',
+    siteAccessNotes: readCardLocationField(workOrderId, role, 'siteAccessNotes'),
+    parkingNotes: readCardLocationField(workOrderId, role, 'parkingNotes'),
+    stairsElevatorNotes: readCardLocationField(workOrderId, role, 'stairsElevatorNotes'),
+    roomLocationNotes: readCardLocationField(workOrderId, role, 'roomLocationNotes')
+  })).filter(locationHasContent);
 }
 
 function buildNewVisitPayload(workOrderId) {
@@ -844,6 +1161,67 @@ function buildNewVisitPayload(workOrderId) {
     visitInstructions: readNewVisitField(card, 'visitInstructions'),
     timingNotes: readNewVisitField(card, 'timingNotes')
   };
+}
+
+function validateEditPayload(payload, workOrder) {
+  if (!clean(payload.jobTypeId) && !clean(workOrder?.jobTypeOther)) {
+    return 'Choose a work type.';
+  }
+
+  if (!clean(payload.serviceDetails)) {
+    return 'Add a work description.';
+  }
+
+  if (['booked', 'completed', 'invoiced', 'paid'].includes(workOrder?.status)) {
+    return validateBookingReadiness({
+      locationMode: payload.locationMode,
+      locations: payload.locations,
+      primaryVisit: payload.visits?.[0]
+    });
+  }
+
+  return '';
+}
+
+function validateStatusPayload(workOrderId, status) {
+  if (!clean(status)) {
+    return 'Choose a status to apply.';
+  }
+
+  const workOrder = findWorkOrder(workOrderId);
+
+  if (status === 'booked' && workOrder) {
+    return validateBookingReadiness({
+      locationMode: workOrder.locationMode,
+      locations: workOrder.locations || [],
+      primaryVisit: workOrder.visits?.find((visit) => visit.scheduleState === 'booked' && visit.visitStatus !== 'cancelled') || workOrder.primaryVisit
+    });
+  }
+
+  return '';
+}
+
+function validateBookingReadiness({ locationMode, locations, primaryVisit }) {
+  if (locationMode === 'pickup_delivery') {
+    const pickup = locations.find((location) => location.role === 'pickup');
+    const delivery = locations.find((location) => location.role === 'delivery');
+
+    if (!locationHasAddress(pickup) || !locationHasAddress(delivery)) {
+      return 'Pickup + delivery work orders need both pickup and delivery addresses before booking.';
+    }
+  } else if (!locationHasAddress(locations.find((location) => location.role === 'service'))) {
+    return 'Add a service address before booking.';
+  }
+
+  if (primaryVisit?.scheduleState !== 'booked' || !primaryVisit?.scheduledDate) {
+    return 'Booked work orders need a booked visit date.';
+  }
+
+  if (!primaryVisit.anytime && !primaryVisit.arrivalWindowLabel && !primaryVisit.startTime) {
+    return 'Booked work orders need an arrival window, Anytime, or a start time.';
+  }
+
+  return '';
 }
 
 async function searchContactsForLink() {
@@ -930,17 +1308,26 @@ function renderSelectedContact(contact) {
 
   if (!contact) {
     elements.selectedContact.classList.add('is-hidden');
+    renderContactAddressOption(null);
     return;
   }
 
   const title = document.createElement('strong');
   title.textContent = formatContactLinkTitle(contact);
 
-  const meta = document.createElement('span');
-  meta.textContent = [contact.companyName, contact.phone, contact.email].filter(Boolean).join(' / ') || 'Linked customer';
+  const details = document.createElement('div');
+  details.className = 'jobs-selected-contact-grid';
+  details.append(
+    createMiniField('Name', contact.displayName),
+    createMiniField('Company', contact.companyName),
+    createMiniField('Phone', contact.phone),
+    createMiniField('Email', contact.email),
+    createMiniField('Address', formatContactAddress(contact))
+  );
 
-  elements.selectedContact.append(title, meta);
+  elements.selectedContact.append(title, details);
   elements.selectedContact.classList.remove('is-hidden');
+  renderContactAddressOption(contact);
 }
 
 function clearSelectedContact() {
@@ -978,16 +1365,24 @@ async function loadPropertiesForSelectedContact() {
 }
 
 function renderPropertyOptions() {
+  const contactAddress = getContactAddressProperty();
+
   document.querySelectorAll('[data-property-select]').forEach((select) => {
     const currentValue = select.value;
     select.replaceChildren(createOption('', state.properties.length ? 'Select saved property' : 'No saved properties'));
+
+    if (contactAddress && select.dataset.propertySelect === 'service') {
+      select.append(createOption(CONTACT_ADDRESS_OPTION_VALUE, 'Use contact address as service address'));
+    }
 
     for (const property of state.properties) {
       const option = createOption(property.id, formatPropertyLabel(property));
       select.append(option);
     }
 
-    if (state.properties.some((property) => property.id === currentValue)) {
+    if (currentValue === CONTACT_ADDRESS_OPTION_VALUE && contactAddress && select.dataset.propertySelect === 'service') {
+      select.value = currentValue;
+    } else if (state.properties.some((property) => property.id === currentValue)) {
       select.value = currentValue;
     }
   });
@@ -1000,15 +1395,157 @@ function chooseDefaultServiceProperty() {
   if (defaultProperty && serviceSelect && !serviceSelect.value) {
     serviceSelect.value = defaultProperty.id;
     fillLocationFromProperty('service', defaultProperty);
+    return;
+  }
+
+  if (state.properties.length === 0 && serviceSelect && !serviceSelect.value && getContactAddressProperty()) {
+    serviceSelect.value = CONTACT_ADDRESS_OPTION_VALUE;
+    fillLocationFromContactAddress('service');
+    setFormMessage('Contact address filled as the service address.');
   }
 }
 
 function handlePropertySelect(select) {
   const role = select.dataset.propertySelect;
+
+  if (select.value === CONTACT_ADDRESS_OPTION_VALUE) {
+    fillLocationFromContactAddress(role);
+    return;
+  }
+
   const property = state.properties.find((item) => item.id === select.value);
 
   if (role && property) {
     fillLocationFromProperty(role, property);
+  }
+}
+
+function handleContactAddressOptionClick(event) {
+  const button = event.target.closest('[data-contact-address-action]');
+
+  if (!button) {
+    return;
+  }
+
+  fillLocationFromContactAddress('service');
+  const serviceSelect = document.querySelector('[data-property-select="service"]');
+
+  if (serviceSelect && getContactAddressProperty()) {
+    serviceSelect.value = CONTACT_ADDRESS_OPTION_VALUE;
+  }
+}
+
+function renderContactAddressOption(contact) {
+  elements.contactAddressOption.replaceChildren();
+
+  if (!contactHasAddress(contact)) {
+    elements.contactAddressOption.classList.add('is-hidden');
+    return;
+  }
+
+  const text = document.createElement('span');
+  text.textContent = formatContactAddress(contact);
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'secondary-action compact-action';
+  button.dataset.contactAddressAction = 'useServiceAddress';
+  button.textContent = 'Use contact address as service address';
+
+  elements.contactAddressOption.append(text, button);
+  elements.contactAddressOption.classList.remove('is-hidden');
+}
+
+function createMiniField(label, value) {
+  const item = document.createElement('span');
+  const labelElement = document.createElement('b');
+  labelElement.textContent = `${label}: `;
+  const valueElement = document.createElement('span');
+  valueElement.textContent = value || 'Not set';
+  item.append(labelElement, valueElement);
+  return item;
+}
+
+function getContactAddressProperty() {
+  if (!contactHasAddress(state.selectedContact)) {
+    return null;
+  }
+
+  return {
+    id: CONTACT_ADDRESS_OPTION_VALUE,
+    label: 'Contact address',
+    propertyType: 'service',
+    addressLine1: state.selectedContact.addressLine1 || '',
+    addressLine2: state.selectedContact.addressLine2 || '',
+    city: state.selectedContact.city || '',
+    province: state.selectedContact.province || 'BC',
+    postalCode: state.selectedContact.postalCode || '',
+    country: state.selectedContact.country || 'Canada',
+    siteAccessNotes: '',
+    parkingNotes: '',
+    stairsElevatorNotes: '',
+    roomLocationNotes: ''
+  };
+}
+
+function contactHasAddress(contact) {
+  return Boolean(contact?.addressLine1 && contact?.city);
+}
+
+function fillLocationFromContactAddress(role) {
+  const contactAddress = getContactAddressProperty();
+
+  if (role && contactAddress) {
+    fillLocationFromProperty(role, contactAddress);
+  }
+}
+
+async function saveCheckedLocationProperties(payload) {
+  if (!state.selectedContact?.id) {
+    return;
+  }
+
+  for (const location of payload.locations || []) {
+    const checkbox = document.querySelector(`[data-save-property-role="${location.role}"]`);
+
+    if (!checkbox?.checked || location.customerContactPropertyId) {
+      continue;
+    }
+
+    if (!locationHasAddress(location)) {
+      throw new Error('Add address line 1 and city before saving this address to customer properties.');
+    }
+
+    const result = await fetchJson(endpoints.properties(state.selectedContact.id), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        label: clean(location.label) || formatStatusText(location.role),
+        propertyType: 'service',
+        addressLine1: location.addressLine1,
+        addressLine2: location.addressLine2,
+        city: location.city,
+        province: location.province || 'BC',
+        postalCode: location.postalCode,
+        country: location.country || 'Canada',
+        siteAccessNotes: location.siteAccessNotes,
+        parkingNotes: location.parkingNotes,
+        stairsElevatorNotes: location.stairsElevatorNotes,
+        roomLocationNotes: location.roomLocationNotes,
+        isDefaultServiceAddress: location.role === 'service' && state.properties.length === 0
+      })
+    });
+
+    if (result.property?.id) {
+      location.customerContactPropertyId = result.property.id;
+      state.properties.push(result.property);
+      const select = document.querySelector(`[data-property-select="${location.role}"]`);
+      renderPropertyOptions();
+
+      if (select) {
+        select.value = result.property.id;
+      }
+    }
   }
 }
 
@@ -1357,6 +1894,19 @@ function setListStatus(message, isError = false) {
   elements.listStatus.classList.toggle('is-error', Boolean(isError));
 }
 
+function setCardMessage(workOrderId, message, isError = false) {
+  const card = getWorkOrderCard(workOrderId);
+
+  if (!card) {
+    return;
+  }
+
+  card.querySelectorAll('[data-card-message]').forEach((element) => {
+    element.textContent = message || '';
+    element.classList.toggle('is-error', Boolean(isError));
+  });
+}
+
 function readLocationField(role, fieldName) {
   return document.querySelector(`[data-location-field="${role}.${fieldName}"]`)?.value || '';
 }
@@ -1373,6 +1923,14 @@ function readCardField(workOrderId, fieldName) {
   return getWorkOrderCard(workOrderId)?.querySelector(`[data-work-order-field="${fieldName}"]`)?.value || '';
 }
 
+function readStatusField(workOrderId) {
+  return getWorkOrderCard(workOrderId)?.querySelector('[data-work-order-status-field="status"]')?.value || '';
+}
+
+function readCardLocationField(workOrderId, role, fieldName) {
+  return getWorkOrderCard(workOrderId)?.querySelector(`[data-work-order-location-field="${role}.${fieldName}"]`)?.value || '';
+}
+
 function readCardChecked(workOrderId, fieldName) {
   return Boolean(getWorkOrderCard(workOrderId)?.querySelector(`[data-work-order-field="${fieldName}"]`)?.checked);
 }
@@ -1384,6 +1942,10 @@ function readNewVisitField(card, fieldName) {
 function getWorkOrderCard(workOrderId) {
   return Array.from(elements.list.querySelectorAll('[data-work-order-id]'))
     .find((card) => card.dataset.workOrderId === workOrderId);
+}
+
+function findWorkOrder(workOrderId) {
+  return state.workOrders.find((workOrder) => workOrder.id === workOrderId) || null;
 }
 
 function getSelectedWorkType() {
@@ -1451,9 +2013,28 @@ function formatPropertyLabel(property) {
   ].filter(Boolean).join(' / ');
 }
 
+function formatContactAddress(contact) {
+  const locality = [contact?.city, contact?.province, contact?.postalCode].filter(Boolean).join(', ');
+  return [
+    contact?.addressLine1,
+    contact?.addressLine2,
+    locality,
+    contact?.country
+  ].filter(Boolean).join(' / ');
+}
+
 function formatStatus(status) {
   const match = state.statuses.find((option) => option.value === status);
   return match?.label || fallbackStatusLabels[status] || formatStatusText(status);
+}
+
+function formatLifecycleLabel(status) {
+  return lifecycleLabels[status] || formatStatus(status);
+}
+
+function formatLifecycleDetail(workOrderOrStatus) {
+  const status = typeof workOrderOrStatus === 'string' ? workOrderOrStatus : workOrderOrStatus?.status;
+  return workOrderOrStatus?.lifecycleDetail || lifecycleDetails[status] || formatLifecycleLabel(status);
 }
 
 function formatAssignment(value) {

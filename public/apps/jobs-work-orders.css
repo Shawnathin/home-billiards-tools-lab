@@ -59,6 +59,7 @@
 .jobs-mode-pill,
 .jobs-status-pill,
 .jobs-type-pill,
+.jobs-lifecycle-pill,
 .jobs-archive-pill {
   margin: 0;
   border-radius: 999px;
@@ -171,14 +172,20 @@
 .jobs-form,
 .jobs-form-section,
 .jobs-work-order-list,
+.jobs-card-panels,
 .jobs-card-control-body,
+.jobs-status-update-body,
 .jobs-notes-block,
 .jobs-visits-block,
 .jobs-contact-link,
 .jobs-contact-results,
 .jobs-selected-contact,
+.jobs-selected-contact-grid,
+.jobs-contact-address-option,
 .jobs-control-notes-grid,
 .jobs-location-group,
+.jobs-card-location-controls,
+.jobs-card-location-group,
 .jobs-quick-property-grid {
   display: grid;
   gap: 12px;
@@ -213,7 +220,8 @@
 
 .jobs-form label,
 .jobs-filter-grid label,
-.jobs-card-controls label {
+.jobs-card-controls label,
+.jobs-status-update-panel label {
   display: grid;
   gap: 7px;
   color: var(--brand-dark);
@@ -222,7 +230,8 @@
 }
 
 .jobs-form textarea,
-.jobs-card-controls textarea {
+.jobs-card-controls textarea,
+.jobs-status-update-panel textarea {
   width: 100%;
   min-height: 86px;
   border: 1px solid rgba(61, 111, 131, 0.2);
@@ -237,7 +246,8 @@
 }
 
 .jobs-form textarea:focus,
-.jobs-card-controls textarea:focus {
+.jobs-card-controls textarea:focus,
+.jobs-status-update-panel textarea:focus {
   border-color: rgba(79, 157, 159, 0.72);
   box-shadow: 0 0 0 4px rgba(115, 210, 214, 0.18), var(--frost-inset);
 }
@@ -331,6 +341,21 @@
   overflow-wrap: anywhere;
 }
 
+.jobs-selected-contact-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 12px;
+}
+
+.jobs-selected-contact-grid span,
+.jobs-contact-address-option span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.jobs-selected-contact-grid b {
+  color: var(--brand-dark);
+}
+
 .jobs-contact-result span,
 .jobs-selected-contact span,
 .jobs-contact-result-status {
@@ -353,6 +378,15 @@
   background: rgba(92, 184, 133, 0.12);
 }
 
+.jobs-contact-address-option {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid rgba(61, 111, 131, 0.14);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.58);
+}
+
 .jobs-location-group,
 .jobs-quick-property {
   padding: 12px;
@@ -363,6 +397,7 @@
 
 .jobs-quick-property summary,
 .jobs-card-controls summary,
+.jobs-status-update-panel summary,
 .jobs-add-visit-panel summary {
   color: var(--brand-dark);
   font-weight: 900;
@@ -393,6 +428,10 @@
 .compact-checkbox {
   align-self: end;
   min-height: 46px;
+}
+
+.jobs-save-property-row {
+  align-self: auto;
 }
 
 .compact-action {
@@ -462,10 +501,15 @@
 }
 
 .status-paid,
-.status-invoiced,
 .status-completed {
   color: #23624a;
   background: rgba(92, 184, 133, 0.2);
+}
+
+.status-invoiced,
+.lifecycle-invoiced {
+  color: #8a4f00;
+  background: rgba(248, 184, 86, 0.28);
 }
 
 .status-quoted,
@@ -484,6 +528,16 @@
   color: var(--brand-dark);
   background: rgba(255, 255, 255, 0.74);
   border: 1px solid rgba(61, 111, 131, 0.16);
+}
+
+.jobs-lifecycle-pill {
+  color: var(--brand-dark);
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(61, 111, 131, 0.16);
+}
+
+.lifecycle-paid {
+  color: #23624a;
 }
 
 .jobs-card-meta {
@@ -578,9 +632,83 @@
   border-top: 1px solid rgba(61, 111, 131, 0.14);
 }
 
+.jobs-card-panels {
+  padding-top: 14px;
+  border-top: 1px solid rgba(61, 111, 131, 0.14);
+}
+
+.jobs-card-controls,
+.jobs-status-update-panel {
+  padding-top: 0;
+  border-top: 0;
+}
+
 .jobs-card-control-body,
+.jobs-status-update-body,
 .jobs-add-visit-panel {
   margin-top: 12px;
+}
+
+.jobs-card-message {
+  min-height: 20px;
+  margin: 0;
+  color: var(--muted);
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.jobs-card-message.is-error {
+  color: #9d2f2f;
+}
+
+.jobs-linked-customer-line,
+.jobs-status-current p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 750;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.jobs-card-location-controls {
+  padding: 12px;
+  border: 1px solid rgba(61, 111, 131, 0.12);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.34);
+}
+
+.jobs-card-location-group {
+  padding-top: 10px;
+  border-top: 1px solid rgba(61, 111, 131, 0.12);
+}
+
+.jobs-card-location-group > strong {
+  color: var(--brand-dark);
+  font-size: 0.84rem;
+  text-transform: capitalize;
+}
+
+.jobs-status-current {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.jobs-status-current p {
+  flex: 1 1 260px;
+}
+
+.jobs-status-next-actions,
+.jobs-status-manual {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.jobs-status-manual label {
+  min-width: min(220px, 100%);
 }
 
 .jobs-control-grid {
@@ -630,6 +758,8 @@
   .jobs-card-meta,
   .jobs-control-grid,
   .jobs-control-notes-grid,
+  .jobs-selected-contact-grid,
+  .jobs-contact-address-option,
   .jobs-quick-property-grid,
   .three-columns {
     grid-template-columns: 1fr;

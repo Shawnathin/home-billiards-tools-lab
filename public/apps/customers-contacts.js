@@ -526,28 +526,39 @@ function renderRelatedActivity(content, related) {
 
 function createWorkOrderRelatedRow(workOrder) {
   const row = document.createElement('div');
-  row.className = 'contacts-related-row';
+  row.className = `contacts-related-row${workOrder.isOutstanding ? ' is-outstanding' : ''}${workOrder.isClosedPaid ? ' is-paid' : ''}`;
 
   const title = document.createElement('strong');
-  title.textContent = workOrder.workOrderNumber || 'Work order';
+  title.textContent = [workOrder.workOrderNumber || 'Work order', workOrder.title || ''].filter(Boolean).join(' - ');
 
   const meta = document.createElement('span');
   meta.textContent = [
-    formatStatusText(workOrder.status),
-    workOrder.title || '',
-    workOrder.city || '',
+    workOrder.statusSummary || formatWorkOrderRelatedStatus(workOrder.status),
+    workOrder.scheduleSummary ? `Schedule ${workOrder.scheduleSummary}` : '',
     formatStatusText(workOrder.visitType),
     formatStatusText(workOrder.assignedTo),
+    workOrder.city || '',
     workOrder.referenceNumber || ''
   ].filter(Boolean).join(' / ');
 
+  const outstanding = workOrder.isOutstanding ? document.createElement('em') : null;
+
+  if (outstanding) {
+    outstanding.textContent = 'Outstanding / not paid';
+  }
+
   const dates = document.createElement('small');
   dates.textContent = [
-    workOrder.scheduleSummary ? `Visit ${workOrder.scheduleSummary}` : '',
     workOrder.updatedAt ? `Updated ${formatDate(workOrder.updatedAt)}` : ''
   ].filter(Boolean).join(' / ');
 
-  row.append(title, meta, dates);
+  row.append(title);
+
+  if (outstanding) {
+    row.append(outstanding);
+  }
+
+  row.append(meta, dates);
   return row;
 }
 
@@ -952,6 +963,22 @@ function formatRelatedDates(record) {
     record.createdAt ? `Created ${formatDate(record.createdAt)}` : '',
     record.updatedAt ? `Updated ${formatDate(record.updatedAt)}` : ''
   ].filter(Boolean).join(' / ');
+}
+
+function formatWorkOrderRelatedStatus(status) {
+  if (status === 'invoiced') {
+    return 'Invoiced - outstanding / not paid';
+  }
+
+  if (status === 'paid') {
+    return 'Paid - closed / paid';
+  }
+
+  if (status === 'completed') {
+    return 'Completed - work done';
+  }
+
+  return formatStatusText(status);
 }
 
 function formatStatusText(value) {

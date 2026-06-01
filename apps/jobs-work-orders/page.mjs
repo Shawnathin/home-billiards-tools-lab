@@ -94,6 +94,7 @@ export function renderJobsWorkOrdersPage({ user }) {
                     <input id="workOrderContactSearch" type="search" placeholder="Name, phone, email, company, contact number" autocomplete="off" />
                   </label>
                   <div id="workOrderContactSelected" class="jobs-selected-contact is-hidden" aria-live="polite"></div>
+                  <div id="workOrderContactAddressOption" class="jobs-contact-address-option is-hidden" aria-live="polite"></div>
                   <div id="workOrderContactResults" class="jobs-contact-results" aria-live="polite"></div>
                 </div>
 
@@ -177,6 +178,10 @@ export function renderJobsWorkOrdersPage({ user }) {
                       <textarea data-location-field="service.roomLocationNotes" rows="2"></textarea>
                     </label>
                   </div>
+                  <label class="jobs-checkbox-row compact-checkbox jobs-save-property-row">
+                    <input data-save-property-role="service" type="checkbox" />
+                    Save this address to customer properties
+                  </label>
                 </div>
 
                 <div class="jobs-location-group is-hidden" data-location-panel="pickup">
@@ -233,6 +238,10 @@ export function renderJobsWorkOrdersPage({ user }) {
                       <textarea data-location-field="pickup.roomLocationNotes" rows="2"></textarea>
                     </label>
                   </div>
+                  <label class="jobs-checkbox-row compact-checkbox jobs-save-property-row">
+                    <input data-save-property-role="pickup" type="checkbox" />
+                    Save this address to customer properties
+                  </label>
                 </div>
 
                 <div class="jobs-location-group is-hidden" data-location-panel="delivery">
@@ -289,6 +298,10 @@ export function renderJobsWorkOrdersPage({ user }) {
                       <textarea data-location-field="delivery.roomLocationNotes" rows="2"></textarea>
                     </label>
                   </div>
+                  <label class="jobs-checkbox-row compact-checkbox jobs-save-property-row">
+                    <input data-save-property-role="delivery" type="checkbox" />
+                    Save this address to customer properties
+                  </label>
                 </div>
 
                 <details class="jobs-quick-property">

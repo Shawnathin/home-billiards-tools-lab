@@ -201,6 +201,15 @@ app.use((req, res) => {
 
 app.use((error, req, res, next) => {
   console.error(error);
+
+  if (req.path.startsWith('/api/')) {
+    return res.status(error.statusCode || 500).json({
+      error: error.statusCode && error.statusCode < 500
+        ? error.message || 'Request could not be completed.'
+        : 'Server error. Check Render logs for details.'
+    });
+  }
+
   res.status(500).send('Server error. Check Render logs for details.');
 });
 

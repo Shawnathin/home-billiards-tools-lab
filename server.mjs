@@ -5,6 +5,8 @@ import connectPgSimple from 'connect-pg-simple';
 import bcrypt from 'bcryptjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { renderCustomersContactsPage } from './apps/customers-contacts/page.mjs';
+import { customersContactsApiRouter } from './apps/customers-contacts/routes.mjs';
 import { renderCueRepairsPage } from './apps/cue-repairs/page.mjs';
 import { cueRepairsApiRouter } from './apps/cue-repairs/routes.mjs';
 import { renderProductsInventoryPage } from './apps/products-inventory/page.mjs';
@@ -166,6 +168,12 @@ app.get('/apps/warranty-service-tickets', requireAuth, (req, res) => {
 });
 
 app.use('/api/apps/warranty-service-tickets', requireAuth, warrantyServiceTicketsApiRouter);
+
+app.get('/apps/customers-contacts', requireAuth, (req, res) => {
+  res.send(renderCustomersContactsPage({ user: req.session.user }));
+});
+
+app.use('/api/apps/customers-contacts', requireAuth, customersContactsApiRouter);
 
 app.post('/logout', requireAuth, (req, res, next) => {
   req.session.destroy((error) => {

@@ -1,33 +1,19 @@
+import { renderAppShell } from '../../src/utils/app-shell.mjs';
 import { escapeHtml } from '../../src/utils/html.mjs';
 
 export function renderServicesAndQuotesPage({ user }) {
   const displayName = escapeHtml(user?.displayName || 'staff');
 
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Services &amp; Quotes | Home Billiards Tools Lab</title>
-    <link rel="stylesheet" href="/styles.css" />
-    <link rel="stylesheet" href="/apps/services-and-quotes.css" />
-    <script src="/apps/services-and-quotes.js" defer></script>
-  </head>
-  <body>
-    <main class="quote-shell">
+  return renderAppShell({
+    title: 'Services & Quotes',
+    user,
+    activePath: '/apps/services-and-quotes',
+    styles: ['/apps/services-and-quotes.css'],
+    scripts: ['/apps/services-and-quotes.js'],
+    mainLabel: 'Services and Quotes app',
+    content: `
+    <div class="quote-shell">
       <section class="quote-panel glass-panel" aria-label="Services and Quotes app">
-        <header class="quote-topbar">
-          <a class="quote-logo" href="/dashboard" aria-label="Back to dashboard">
-            <img src="/assets/home-billiards-logo-app.png" alt="Home Billiards" width="520" height="304" />
-          </a>
-          <div class="quote-nav-actions">
-            <a class="secondary-action text-action" href="/dashboard">Dashboard</a>
-            <form method="post" action="/logout">
-              <button class="secondary-action" type="submit">Log out</button>
-            </form>
-          </div>
-        </header>
-
         <div class="quote-title-row">
           <div>
             <p class="eyebrow">Internal tools</p>
@@ -67,7 +53,6 @@ export function renderServicesAndQuotesPage({ user }) {
           </aside>
         </div>
       </section>
-    </main>
-  </body>
-</html>`;
+    </div>`
+  });
 }

@@ -2,7 +2,7 @@ export const appRegistry = [
   {
     id: 'services-and-quotes',
     name: 'Services & Quotes',
-    description: 'Build quick service quote previews from the internal service catalog.',
+    description: 'Build service quote previews from the internal service catalog.',
     status: 'v1',
     path: '/apps/services-and-quotes',
     defaultAccess: 'all_logged_in_users',
@@ -11,7 +11,7 @@ export const appRegistry = [
   {
     id: 'cue-repairs',
     name: 'Cue Repairs',
-    description: 'Track cue repair intake, estimates, status, customer contact, and pickup.',
+    description: 'Track cue repair jobs from intake to completion.',
     status: 'v1',
     path: '/apps/cue-repairs',
     defaultAccess: 'all_logged_in_users',
@@ -20,7 +20,7 @@ export const appRegistry = [
   {
     id: 'products-inventory',
     name: 'Products / Inventory',
-    description: 'Track products, pricing, stock counts, locations, and inventory adjustments.',
+    description: 'Manage internal products, pricing, stock counts, and inventory adjustments.',
     status: 'v1',
     path: '/apps/products-inventory',
     defaultAccess: 'all_logged_in_users',
@@ -29,9 +29,18 @@ export const appRegistry = [
   {
     id: 'warranty-service-tickets',
     name: 'Warranty / Service Tickets',
-    description: 'Track warranty claims, service issues, product problems, follow-ups, and resolutions.',
+    description: 'Track warranty claims, service issues, and customer follow-ups.',
     status: 'v1',
     path: '/apps/warranty-service-tickets',
+    defaultAccess: 'all_logged_in_users',
+    enabled: true
+  },
+  {
+    id: 'customers-contacts',
+    name: 'Customers / Contacts',
+    description: 'Manage customer and business contact records.',
+    status: 'v1',
+    path: '/apps/customers-contacts',
     defaultAccess: 'all_logged_in_users',
     enabled: true
   },
@@ -41,15 +50,6 @@ export const appRegistry = [
     description: 'Track installs, moves, deliveries, service jobs, and internal work orders.',
     status: 'v1',
     path: '/apps/jobs-work-orders',
-    defaultAccess: 'all_logged_in_users',
-    enabled: true
-  },
-  {
-    id: 'customers-contacts',
-    name: 'Customers / Contacts',
-    description: 'Track customer and business contact details, notes, status, and contact preferences.',
-    status: 'v1',
-    path: '/apps/customers-contacts',
     defaultAccess: 'all_logged_in_users',
     enabled: true
   },

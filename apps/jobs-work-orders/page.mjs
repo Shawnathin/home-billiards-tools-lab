@@ -1,33 +1,19 @@
+import { renderAppShell } from '../../src/utils/app-shell.mjs';
 import { escapeHtml } from '../../src/utils/html.mjs';
 
 export function renderJobsWorkOrdersPage({ user }) {
   const displayName = escapeHtml(user?.displayName || 'staff');
 
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Jobs / Work Orders | Home Billiards Tools Lab</title>
-    <link rel="stylesheet" href="/styles.css" />
-    <link rel="stylesheet" href="/apps/jobs-work-orders.css" />
-    <script src="/apps/jobs-work-orders.js" defer></script>
-  </head>
-  <body>
-    <main class="jobs-shell">
+  return renderAppShell({
+    title: 'Jobs / Work Orders',
+    user,
+    activePath: '/apps/jobs-work-orders',
+    styles: ['/apps/jobs-work-orders.css'],
+    scripts: ['/apps/jobs-work-orders.js'],
+    mainLabel: 'Jobs and Work Orders app',
+    content: `
+    <div class="jobs-shell">
       <section class="jobs-panel glass-panel" aria-label="Jobs and Work Orders app">
-        <header class="jobs-topbar">
-          <a class="jobs-logo" href="/dashboard" aria-label="Back to dashboard">
-            <img src="/assets/home-billiards-logo-app.png" alt="Home Billiards" width="520" height="304" />
-          </a>
-          <div class="jobs-nav-actions">
-            <a class="secondary-action text-action" href="/dashboard">Dashboard</a>
-            <form method="post" action="/logout">
-              <button class="secondary-action" type="submit">Log out</button>
-            </form>
-          </div>
-        </header>
-
         <div class="jobs-title-row">
           <div>
             <p class="eyebrow">Internal tools</p>
@@ -289,7 +275,6 @@ export function renderJobsWorkOrdersPage({ user }) {
           </section>
         </div>
       </section>
-    </main>
-  </body>
-</html>`;
+    </div>`
+  });
 }

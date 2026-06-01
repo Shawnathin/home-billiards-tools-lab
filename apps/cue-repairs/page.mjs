@@ -1,33 +1,19 @@
+import { renderAppShell } from '../../src/utils/app-shell.mjs';
 import { escapeHtml } from '../../src/utils/html.mjs';
 
 export function renderCueRepairsPage({ user }) {
   const displayName = escapeHtml(user?.displayName || 'staff');
 
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Cue Repairs | Home Billiards Tools Lab</title>
-    <link rel="stylesheet" href="/styles.css" />
-    <link rel="stylesheet" href="/apps/cue-repairs.css" />
-    <script src="/apps/cue-repairs.js" defer></script>
-  </head>
-  <body>
-    <main class="cue-shell">
+  return renderAppShell({
+    title: 'Cue Repairs',
+    user,
+    activePath: '/apps/cue-repairs',
+    styles: ['/apps/cue-repairs.css'],
+    scripts: ['/apps/cue-repairs.js'],
+    mainLabel: 'Cue Repairs app',
+    content: `
+    <div class="cue-shell">
       <section class="cue-panel glass-panel" aria-label="Cue Repairs app">
-        <header class="cue-topbar">
-          <a class="cue-logo" href="/dashboard" aria-label="Back to dashboard">
-            <img src="/assets/home-billiards-logo-app.png" alt="Home Billiards" width="520" height="304" />
-          </a>
-          <div class="cue-nav-actions">
-            <a class="secondary-action text-action" href="/dashboard">Dashboard</a>
-            <form method="post" action="/logout">
-              <button class="secondary-action" type="submit">Log out</button>
-            </form>
-          </div>
-        </header>
-
         <div class="cue-title-row">
           <div>
             <p class="eyebrow">Internal tools</p>
@@ -180,7 +166,6 @@ export function renderCueRepairsPage({ user }) {
           </section>
         </div>
       </section>
-    </main>
-  </body>
-</html>`;
+    </div>`
+  });
 }

@@ -17,9 +17,10 @@ import { renderServicesAndQuotesPage } from './apps/services-and-quotes/page.mjs
 import { servicesAndQuotesApiRouter } from './apps/services-and-quotes/routes.mjs';
 import { renderWarrantyServiceTicketsPage } from './apps/warranty-service-tickets/page.mjs';
 import { warrantyServiceTicketsApiRouter } from './apps/warranty-service-tickets/routes.mjs';
-import { appRegistry, getEnabledApps } from './src/app-registry.mjs';
+import { getEnabledApps } from './src/app-registry.mjs';
 import { pool } from './src/db.mjs';
 import { requireAuth } from './src/middleware.mjs';
+import { renderAppShell } from './src/utils/app-shell.mjs';
 import { escapeHtml } from './src/utils/html.mjs';
 
 const requiredEnv = ['DATABASE_URL', 'SESSION_SECRET'];
@@ -209,66 +210,61 @@ app.listen(port, () => {
 
 function renderDashboardPage({ user }) {
   const enabledApps = getEnabledApps();
-  const dashboardMessage =
-    enabledApps.length > 0
-      ? `${enabledApps.length} tool${enabledApps.length === 1 ? '' : 's'} ready.`
-      : 'No tools installed yet.';
 
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Home Billiards Tools Lab</title>
-    <link rel="stylesheet" href="/styles.css" />
-  </head>
-  <body>
-    <main class="dashboard-shell">
-      <section class="dashboard-panel glass-panel" aria-label="Home Billiards Tools Lab dashboard">
-        <header class="dashboard-header">
-          <img src="/assets/home-billiards-logo-app.png" alt="Home Billiards" width="520" height="304" />
-          <form method="post" action="/logout">
-            <button class="secondary-action" type="submit">Log out</button>
-          </form>
-        </header>
+  return renderAppShell({
+    title: 'Home Billiards Tools Lab',
+    user,
+    activePath: '/dashboard',
+    mainLabel: 'Home Billiards Tools Lab dashboard',
+    content: `
+        <section class="ops-dashboard" aria-labelledby="dashboardTitle">
+          <header class="ops-page-header">
+            <p class="eyebrow">Internal operations</p>
+            <h1 id="dashboardTitle">Home Billiards Tools Lab</h1>
+            <p>Internal operations tools for quotes, repairs, products, service tickets, customers, and work orders.</p>
+          </header>
 
-        <p class="eyebrow">Internal tools</p>
-        <h1>Home Billiards Tools Lab</h1>
-        <p class="welcome-line">Welcome, ${escapeHtml(user.displayName)}.</p>
+          <div class="ops-dashboard-summary" aria-label="Platform summary">
+            <article>
+              <span>Active tools</span>
+              <strong>${enabledApps.length}</strong>
+            </article>
+            <article>
+              <span>Workspace</span>
+              <strong>Staff operations</strong>
+            </article>
+            <article>
+              <span>Status</span>
+              <strong>Internal tools only</strong>
+            </article>
+          </div>
 
-        <div class="empty-toolbox">
-          <h2>${escapeHtml(dashboardMessage)}</h2>
-          <p>Pick an available tool below.</p>
-        </div>
+          <section class="ops-tool-section" aria-labelledby="activeToolsTitle">
+            <div class="ops-section-heading">
+              <div>
+                <p class="eyebrow">Available now</p>
+                <h2 id="activeToolsTitle">Active tools</h2>
+              </div>
+              <p>${enabledApps.length} module${enabledApps.length === 1 ? '' : 's'} ready for staff use.</p>
+            </div>
 
-        <div class="tool-grid" aria-label="Internal tools">
-          ${appRegistry.map(renderToolCard).join('')}
-        </div>
-      </section>
-    </main>
-  </body>
-</html>`;
+            <div class="ops-tool-list" aria-label="Active internal tools">
+              ${enabledApps.map(renderDashboardTool).join('')}
+            </div>
+          </section>
+
+          <p class="ops-platform-note">Internal tools only. Some modules may contain demo/reference data until real-use rollout.</p>
+        </section>`
+  });
 }
 
-function renderToolCard(app) {
-  const status = escapeHtml(formatStatus(app.status));
-  const content = `
-    <span class="tool-status">${status}</span>
-    <h3>${escapeHtml(app.name)}</h3>
-    <p>${escapeHtml(app.description)}</p>
-  `;
-
-  if (app.enabled && app.path) {
-    return `<a class="tool-card tool-card-link" href="${escapeHtml(app.path)}">${content}</a>`;
-  }
-
-  return `<article class="tool-card muted-card">${content}</article>`;
-}
-
-function formatStatus(status) {
-  if (status === 'v1') {
-    return 'v1';
-  }
-
-  return String(status || 'coming_later').replaceAll('_', ' ');
+function renderDashboardTool(app) {
+  return `<a class="ops-tool-row" href="${escapeHtml(app.path)}">
+                <span class="ops-tool-status">Active</span>
+                <span class="ops-tool-copy">
+                  <strong>${escapeHtml(app.name)}</strong>
+                  <small>${escapeHtml(app.description)}</small>
+                </span>
+                <span class="ops-tool-open">Open</span>
+              </a>`;
 }

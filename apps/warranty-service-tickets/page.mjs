@@ -1,33 +1,19 @@
+import { renderAppShell } from '../../src/utils/app-shell.mjs';
 import { escapeHtml } from '../../src/utils/html.mjs';
 
 export function renderWarrantyServiceTicketsPage({ user }) {
   const displayName = escapeHtml(user?.displayName || 'staff');
 
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Warranty / Service Tickets | Home Billiards Tools Lab</title>
-    <link rel="stylesheet" href="/styles.css" />
-    <link rel="stylesheet" href="/apps/warranty-service-tickets.css" />
-    <script src="/apps/warranty-service-tickets.js" defer></script>
-  </head>
-  <body>
-    <main class="warranty-shell">
+  return renderAppShell({
+    title: 'Warranty / Service Tickets',
+    user,
+    activePath: '/apps/warranty-service-tickets',
+    styles: ['/apps/warranty-service-tickets.css'],
+    scripts: ['/apps/warranty-service-tickets.js'],
+    mainLabel: 'Warranty and Service Tickets app',
+    content: `
+    <div class="warranty-shell">
       <section class="warranty-panel glass-panel" aria-label="Warranty and Service Tickets app">
-        <header class="warranty-topbar">
-          <a class="warranty-logo" href="/dashboard" aria-label="Back to dashboard">
-            <img src="/assets/home-billiards-logo-app.png" alt="Home Billiards" width="520" height="304" />
-          </a>
-          <div class="warranty-nav-actions">
-            <a class="secondary-action text-action" href="/dashboard">Dashboard</a>
-            <form method="post" action="/logout">
-              <button class="secondary-action" type="submit">Log out</button>
-            </form>
-          </div>
-        </header>
-
         <div class="warranty-title-row">
           <div>
             <p class="eyebrow">Internal tools</p>
@@ -224,7 +210,6 @@ export function renderWarrantyServiceTicketsPage({ user }) {
           </section>
         </div>
       </section>
-    </main>
-  </body>
-</html>`;
+    </div>`
+  });
 }

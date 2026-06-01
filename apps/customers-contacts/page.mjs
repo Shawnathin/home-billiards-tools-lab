@@ -1,33 +1,19 @@
+import { renderAppShell } from '../../src/utils/app-shell.mjs';
 import { escapeHtml } from '../../src/utils/html.mjs';
 
 export function renderCustomersContactsPage({ user }) {
   const displayName = escapeHtml(user?.displayName || 'staff');
 
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Customers / Contacts | Home Billiards Tools Lab</title>
-    <link rel="stylesheet" href="/styles.css" />
-    <link rel="stylesheet" href="/apps/customers-contacts.css" />
-    <script src="/apps/customers-contacts.js" defer></script>
-  </head>
-  <body>
-    <main class="contacts-shell">
+  return renderAppShell({
+    title: 'Customers / Contacts',
+    user,
+    activePath: '/apps/customers-contacts',
+    styles: ['/apps/customers-contacts.css'],
+    scripts: ['/apps/customers-contacts.js'],
+    mainLabel: 'Customers and Contacts app',
+    content: `
+    <div class="contacts-shell">
       <section class="contacts-panel glass-panel" aria-label="Customers and Contacts app">
-        <header class="contacts-topbar">
-          <a class="contacts-logo" href="/dashboard" aria-label="Back to dashboard">
-            <img src="/assets/home-billiards-logo-app.png" alt="Home Billiards" width="520" height="304" />
-          </a>
-          <div class="contacts-nav-actions">
-            <a class="secondary-action text-action" href="/dashboard">Dashboard</a>
-            <form method="post" action="/logout">
-              <button class="secondary-action" type="submit">Log out</button>
-            </form>
-          </div>
-        </header>
-
         <div class="contacts-title-row">
           <div>
             <p class="eyebrow">Internal tools</p>
@@ -208,7 +194,6 @@ export function renderCustomersContactsPage({ user }) {
           </section>
         </div>
       </section>
-    </main>
-  </body>
-</html>`;
+    </div>`
+  });
 }
